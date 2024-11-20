@@ -56,6 +56,7 @@ export default {
         // Remove scroll listener
         window.removeEventListener('scroll', this.handleScroll);
     }
+
 }
 </script>
 
@@ -90,7 +91,7 @@ export default {
             </template>
             <template #end>
                 <div class="flex items-center gap-2">
-                    <Button class="transition-all duration-400 ease-in-out" @click="toggleDarkMode"
+                    <Button class="v-ripple transition-all duration-400 ease-in-out" @click="toggleDarkMode"
                         :icon="isDarkMode ? 'pi pi-moon' : 'pi pi-sun'" :rounded="isScrolled" />
                     <InputText placeholder="Search" type="text" class="w-32 sm:w-auto" />
                     <Avatar icon="pi pi-user" class="mr-2" shape="circle" />

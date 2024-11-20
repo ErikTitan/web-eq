@@ -16,7 +16,6 @@ export default {
 
 <template>
   <div>
-
     <HomeView />
   </div>
 </template>

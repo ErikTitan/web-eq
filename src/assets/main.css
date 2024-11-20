@@ -13,4 +13,45 @@
 
 body {
   font-family: 'Anta', sans-serif;
+  background-color: var(--body-bg);
+}
+
+/* light mode colors */
+:root {
+  --body-bg: var(--p-surface-0);
+
+  --gradient-start: var(--p-blue-200);
+  --gradient-end: var(--p-teal-200);
+  --overlay: rgba(255, 255, 255, 0.2);
+
+  /* HomeView.vue feature gradient */
+  --gradient-gaming: linear-gradient(135deg, var(--p-purple-200), var(--p-blue-300));
+  --gradient-audio: linear-gradient(135deg, var(--p-cyan-200), var(--p-green-300));
+
+  /* HomeView.vue review gradient */
+  --gradient-testimonial: radial-gradient(
+    77.36% 256.97% at 77.36% 57.52%,
+    var(--p-purple-200) 0%,
+    var(--p-blue-300) 100%
+  );
+}
+
+/* dark mode colors */
+:root[class='my-app-dark'] {
+  --body-bg: var(--p-surface-950);
+
+  --gradient-start: var(--p-blue-400);
+  --gradient-end: var(--p-teal-500);
+  --overlay: rgba(0, 0, 0, 0.2);
+
+  /* HomeView.vue feature gradient */
+  --gradient-gaming: linear-gradient(135deg, var(--p-purple-400), var(--p-blue-500));
+  --gradient-audio: linear-gradient(135deg, var(--p-cyan-400), var(--p-green-500));
+
+  /* HomeView.vue review gradient */
+  --gradient-testimonial: radial-gradient(
+    77.36% 256.97% at 77.36% 57.52%,
+    var(--p-purple-400) 0%,
+    var(--p-blue-500) 100%
+  );
 }

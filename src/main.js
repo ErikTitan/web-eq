@@ -3,12 +3,12 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import PrimeVue from 'primevue/config'
 import Aura from '@primevue/themes/aura'
-import Lara from '@primevue/themes/lara'
 import { definePreset } from '@primevue/themes'
 import App from './App.vue'
 import router from './router'
 import { Toolbar } from 'primevue'
 import 'primeicons/primeicons.css'
+import Ripple from 'primevue/ripple'
 
 const MyPreset = definePreset(Aura, {
   primitive: {
@@ -541,18 +541,18 @@ const MyPreset = definePreset(Aura, {
       },
       dark: {
         surface: {
-          0: '#ffffff',
-          50: '#fafafa',
-          100: '#f4f4f5',
-          200: '#e4e4e7',
-          300: '#d4d4d8',
-          400: '#a1a1aa',
-          500: '#71717a',
-          600: '#52525b',
-          700: '#3f3f46',
-          800: '#27272a',
-          900: '#18181b',
-          950: '#09090b',
+          0: '{slate.0}',
+          50: '{slate.50}',
+          100: '{slate.100}',
+          200: '{slate.200}',
+          300: '{slate.300}',
+          400: '{slate.400}',
+          500: '{slate.500}',
+          600: '{slate.600}',
+          700: '{slate.700}',
+          800: '{slate.800}',
+          900: '{slate.900}',
+          950: '{slate.950}',
         },
         primary: {
           color: '{primary.400}',
@@ -673,6 +673,7 @@ const app = createApp(App)
 app.use(createPinia())
 app.use(router)
 app.use(PrimeVue, {
+  ripple: true,
   theme: {
     preset: MyPreset,
     options: {
@@ -686,4 +687,5 @@ app.use(PrimeVue, {
 })
 
 app.component('Toolbar', Toolbar)
+app.directive('ripple', Ripple)
 app.mount('#app')
