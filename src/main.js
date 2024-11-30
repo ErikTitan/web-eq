@@ -469,7 +469,7 @@ const MyPreset = definePreset(Aura, {
         text: {
           color: '{surface.700}',
           hoverColor: '{surface.800}',
-          mutedColor: '{surface.500}',
+          mutedColor: '{surface.600}',
           hoverMutedColor: '{surface.600}',
         },
         content: {

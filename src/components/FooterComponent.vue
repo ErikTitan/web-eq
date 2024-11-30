@@ -52,8 +52,6 @@ export default {
                     Transform your audio experience with professional-grade equalization tools right in your browser.
                 </p>
             </div>
-
-            <!-- Product Links -->
             <div class="col-span-1">
                 <h3 class="text-lg font-semibold mb-4">Product</h3>
                 <ul class="space-y-2">
@@ -62,8 +60,6 @@ export default {
                     </li>
                 </ul>
             </div>
-
-            <!-- Company Links -->
             <div class="col-span-1">
                 <h3 class="text-lg font-semibold mb-4">Company</h3>
                 <ul class="space-y-2">
@@ -72,8 +68,6 @@ export default {
                     </li>
                 </ul>
             </div>
-
-            <!-- Resources Links -->
             <div class="col-span-1">
                 <h3 class="text-lg font-semibold mb-4">Resources</h3>
                 <ul class="space-y-2">
@@ -84,7 +78,6 @@ export default {
             </div>
         </div>
 
-        <!-- Bottom Section -->
         <div class="mt-8 pt-8 border-t border-gray-200 flex flex-col md:flex-row justify-between items-center">
             <div class="text-sm mb-4 md:mb-0">
                 © 2024 WEB-EQ. All rights reserved.
