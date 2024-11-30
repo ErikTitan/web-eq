@@ -16,6 +16,7 @@ export default {
 
 <template>
   <div>
+    <NavBar />
     <HomeView />
   </div>
 </template>

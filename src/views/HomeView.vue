@@ -1,19 +1,16 @@
 <script>
 import Button from 'primevue/button';
-import NavBar from '@/components/NavBar.vue';
 import Footer from '@/components/Footer.vue';
 export default {
   name: 'home',
   components: {
     Button,
-    NavBar,
     Footer,
   },
 };
 </script>
 
 <template>
-  <NavBar />
   <div class="flex flex-col pt-24 px-6 lg:px-20 overflow-hidden" style="background: linear-gradient(0deg, 
             var(--overlay), 
             var(--overlay)), 
@@ -39,7 +36,8 @@ export default {
   <div class="py-6 px-6 lg:px-20 mx-0 my-12 lg:mx-20">
     <div class="text-center">
       <div class="font-normal mb-2 text-4xl" style="color: var(--p-text-hover-color)">Audio Excellence Anywhere</div>
-      <span class=" text-2xl" style="color: var(--p-text-color)">Professional-grade equalizer in your browser. No downloads
+      <span class=" text-2xl" style="color: var(--p-text-color)">Professional-grade equalizer in your browser. No
+        downloads
         needed.</span>
     </div>
 
@@ -54,7 +52,8 @@ export default {
           style="width: 4.2rem; height: 4.2rem; background: var(--gradient-gaming)">
           <i class="pi pi-fw pi-trophy !text-4xl text-white"></i>
         </div>
-        <div class="leading-none text-3xl font-normal" style="color: var(--p-text-hover-color)">Gaming-Optimized Presets</div>
+        <div class="leading-none text-3xl font-normal" style="color: var(--p-text-hover-color)">Gaming-Optimized Presets
+        </div>
         <span class="text-2xl leading-normal ml-0 md:ml-2" style="max-width: 650px; color: var(--p-text-color)">
           Gain the competitive edge with crystal-clear footsteps and rich explosions. Our gaming presets enhance spatial
           awareness and bring your favorite titles to life with precision-tuned frequencies.
@@ -68,7 +67,8 @@ export default {
           style="width: 4.2rem; height: 4.2rem; background: var(--gradient-audio)">
           <i class="pi pi-fw pi-headphones !text-3xl text-white"></i>
         </div>
-        <div class="leading-none text-3xl font-normal" style="color: var(--p-text-hover-color)">Headphone Perfection</div>
+        <div class="leading-none text-3xl font-normal" style="color: var(--p-text-hover-color)">Headphone Perfection
+        </div>
         <span class="text-2xl leading-normal mr-0 md:mr-2" style="max-width: 650px; color: var(--p-text-color)">
           Transform any headphones into your ideal listening device. Fix frequency imbalances, boost lacking bass, and
           achieve the perfect sound signature for your unique preferences.

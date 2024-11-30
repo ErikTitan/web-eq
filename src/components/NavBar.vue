@@ -48,27 +48,24 @@ export default {
         if (savedDarkMode) {
             document.documentElement.classList.add('my-app-dark');
         }
-
-        // Add scroll listener
         window.addEventListener('scroll', this.handleScroll);
     },
     beforeUnmount() {
-        // Remove scroll listener
         window.removeEventListener('scroll', this.handleScroll);
     }
-
 }
 </script>
 
 <template>
-    <div class="fixed w-full z-50 transition-all duration-400 ease-in-out" :class="{
+    <div class="fixed w-full z-50 transition-all duration-400 ease-in-out overflow-hidden" :class="{
         'lg:top-3': isScrolled,
         'top-0': !isScrolled
     }">
-        <Menubar :model="items" class="transition-all duration-400 ease-in-out mx-auto" :class="{
+        <Menubar :model="items" class="transition-all duration-400 ease-in-out mx-auto overflow-hidden" :class="{
             'container shadow-lg rounded-lg': isScrolled,
-            'w-full max-w-full rounded-none': !isScrolled
+            'w-full max-w-full rounded-none border-none': !isScrolled
         }">
+
             <template #start>
                 <a href="#">
                     <svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 26 26" fill="none">
@@ -100,5 +97,4 @@ export default {
         </Menubar>
     </div>
 </template>
-
 <style scoped></style>
