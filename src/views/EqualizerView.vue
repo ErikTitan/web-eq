@@ -33,6 +33,7 @@ export default {
             ],
             selectedPoint: null,
             isDragging: false,
+            resizeObserver: null,
         }
     },
     methods: {
@@ -58,13 +59,53 @@ export default {
             const analyserCanvas = this.$refs.analyserCanvas;
             const responseCanvas = this.$refs.responseCanvas;
 
-            [analyserCanvas, responseCanvas].forEach(canvas => {
-                canvas.width = canvas.offsetWidth * window.devicePixelRatio;
-                canvas.height = canvas.offsetHeight * window.devicePixelRatio;
-            });
+            if (analyserCanvas && responseCanvas) {
+                // Set canvas dimensions
+                analyserCanvas.width = analyserCanvas.offsetWidth * window.devicePixelRatio;
+                analyserCanvas.height = analyserCanvas.offsetHeight * window.devicePixelRatio;
+                responseCanvas.width = responseCanvas.offsetWidth * window.devicePixelRatio;
+                responseCanvas.height = responseCanvas.offsetHeight * window.devicePixelRatio;
 
-            this.drawAnalyzer();
+                // Update filter positions
+                this.initializeFilterPositions();
+
+                // Start visualizations
+                this.drawAnalyzer();
+                this.drawFrequencyResponse();
+            }
         },
+
+        initializeFilterPositions() {
+            this.$nextTick(() => {
+                const canvas = this.$refs.responseCanvas;
+                if (!canvas) return;
+
+                const devicePixelRatio = window.devicePixelRatio || 1;
+                const canvasWidth = canvas.width / devicePixelRatio;
+                const canvasHeight = canvas.height / devicePixelRatio;
+
+                this.filters = this.filters.map((filter, index) => {
+                    const minF = Math.log10(20);
+                    const maxF = Math.log10(20000);
+                    const step = (maxF - minF) / (this.filters.length - 1);
+                    const frequency = Math.pow(10, minF + step * index);
+
+                    const normalizedX = (Math.log10(frequency) - minF) / (maxF - minF);
+                    const normalizedY = 0.5; // Center Y for initial positions
+
+                    return {
+                        ...filter,
+                        frequency,
+                        gain: 0,
+                        x: normalizedX * canvasWidth,
+                        y: normalizedY * canvasHeight
+                    };
+                });
+
+                this.drawFrequencyResponse();
+            });
+        }
+        ,
 
         drawAnalyzer() {
             const canvas = this.$refs.analyserCanvas;
@@ -97,23 +138,213 @@ export default {
             draw();
         },
 
+        drawFrequencyResponse() {
+            const canvas = this.$refs.responseCanvas;
+            if (!canvas || !this.weq8) return;
+
+            const ctx = canvas.getContext('2d');
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Add glow effect for better visuals
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#00ff40';
+            ctx.strokeStyle = '#00ff40';
+            ctx.lineWidth = 3;
+
+            // Generate logarithmic frequency points
+            const frequencies = new Float32Array(200); // More points = smoother line
+            for (let i = 0; i < frequencies.length; i++) {
+                frequencies[i] = 20 * Math.pow(10, i / frequencies.length * 3);
+            }
+
+            const magResponse = new Float32Array(frequencies.length);
+            const phaseResponse = new Float32Array(frequencies.length);
+
+            // Prepare the path
+            ctx.beginPath();
+
+            // Loop over the frequency range
+            for (let i = 0; i < frequencies.length; i++) {
+                const freq = frequencies[i];
+
+                let totalGain = 0;
+
+                // Sum responses for all active filters
+                this.filters.forEach((filter, index) => {
+                    if (!filter.bypass) {
+                        const freqArray = new Float32Array([freq]);
+                        const magArray = new Float32Array(1);
+                        const phaseArray = new Float32Array(1);
+
+                        try {
+                            // Get filter response for current frequency
+                            this.weq8.getFrequencyResponse(index, 0, freqArray, magArray, phaseArray);
+                            totalGain += 20 * Math.log10(magArray[0]);
+                        } catch (error) {
+                            console.error(`Error getting frequency response for filter ${index}:`, error);
+                        }
+                    }
+                });
+
+                // Convert frequency and gain to canvas coordinates
+                const x = this.frequencyToX(freq);
+                const y = this.gainToY(totalGain);
+
+                if (i === 0) {
+                    ctx.moveTo(x, y); // Start at the first point
+                } else {
+                    ctx.lineTo(x, y); // Draw to subsequent points
+                }
+            }
+
+            ctx.stroke();
+        },
+
+
         getFilterPosition(filter) {
             if (!this.$refs.responseCanvas) return '';
-            const x = this.frequencyToX(filter.frequency);
-            const y = this.gainToY(filter.gain);
-            return `transform: translate(${x}px, ${y}px)`;
+            return `transform: translate(${filter.x}px, ${filter.y}px)`;
+        },
+
+        updateFilter(index, property, value) {
+            const filter = this.filters[index];
+            filter[property] = value;
+
+            if (!this.weq8) return;
+
+            switch (property) {
+                case 'type':
+                    this.weq8.setFilterType(index, value);
+                    break;
+                case 'frequency':
+                    this.weq8.setFilterFrequency(index, value);
+                    break;
+                case 'gain':
+                    this.weq8.setFilterGain(index, value);
+                    break;
+                case 'Q':
+                    this.weq8.setFilterQ(index, value);
+                    break;
+                case 'bypass':
+                    this.weq8.toggleBypass(index, value);
+                    break;
+            }
+
+            // Update visualization whenever filter changes
+            this.drawFrequencyResponse();
         },
 
         frequencyToX(freq) {
             if (!this.$refs.responseCanvas) return 0;
             const minF = Math.log10(20);
             const maxF = Math.log10(20000);
-            return ((Math.log10(freq) - minF) / (maxF - minF)) * this.$refs.responseCanvas.width;
+            const canvas = this.$refs.responseCanvas;
+            return ((Math.log10(freq) - minF) / (maxF - minF)) * canvas.width;
         },
 
         gainToY(gain) {
+            if (!this.$refs.responseCanvas) return 0;
             const canvas = this.$refs.responseCanvas;
             return canvas.height / 2 - (gain * canvas.height / 30);
+        },
+
+        xToFrequency(x) {
+            if (!this.$refs.responseCanvas) return 20;
+            const minF = Math.log10(20);
+            const maxF = Math.log10(20000);
+            const canvas = this.$refs.responseCanvas;
+            return Math.pow(10, minF + (x / canvas.width) * (maxF - minF));
+        },
+
+        yToGain(y) {
+            if (!this.$refs.responseCanvas) return 0;
+            const canvas = this.$refs.responseCanvas;
+            return -((y - canvas.height / 2) * 30) / canvas.height;
+        },
+
+        startDragging(event, index) {
+            // Prevent default to stop text selection etc.
+            event.preventDefault();
+
+            // Use pointer capture to track drag even if mouse moves outside element
+            event.target.setPointerCapture(event.pointerId);
+
+            this.selectedPoint = index;
+            this.isDragging = true;
+
+            // Initial drag handling
+            this.handleDrag(event);
+        },
+
+        handleDrag(event) {
+            if (!this.isDragging) return;
+
+            const canvas = this.$refs.responseCanvas;
+            const canvasBounds = canvas.getBoundingClientRect();
+
+            const pointerX = event.clientX - canvasBounds.left;
+            const pointerY = event.clientY - canvasBounds.top;
+
+            const frequency = this.xToFrequency(pointerX);
+            const gain = this.yToGain(pointerY);
+
+            const clampedFrequency = Math.max(20, Math.min(20000, frequency));
+            const clampedGain = Math.max(-15, Math.min(15, gain));
+
+            this.updateFilterSmooth(this.selectedPoint, "frequency", clampedFrequency);
+            this.updateFilterSmooth(this.selectedPoint, "gain", clampedGain);
+
+            // Update filter position for UI
+            const filter = this.filters[this.selectedPoint];
+            filter.x = pointerX;
+            filter.y = pointerY;
+        },
+
+        updateFilterSmooth(index, property, targetValue, smoothingFactor = 0.1) {
+            const filter = this.filters[index];
+            const currentValue = filter[property];
+
+            // Interpolate the value smoothly
+            const smoothedValue = currentValue + (targetValue - currentValue) * smoothingFactor;
+
+            // Update the filter state
+            this.filters[index][property] = smoothedValue;
+
+            // Debounce runtime updates for performance
+            clearTimeout(this.updateTimeout);
+            this.updateTimeout = setTimeout(() => {
+                this.updateFilter(index, property, smoothedValue);
+            }, 50); // Update runtime every 50ms
+        }
+        ,
+        updateFilterVisualization() {
+            // Centralized method to update visualizations
+            this.$nextTick(() => {
+                if (this.weq8) {
+                    this.drawFrequencyResponse();
+                }
+            });
+        },
+
+        stopDragging(event) {
+            if (this.selectedPoint !== null) {
+                event.target.releasePointerCapture(event.pointerId);
+            }
+            this.isDragging = false;
+            this.selectedPoint = null;
+        },
+
+        onResize() {
+            const canvas = this.$refs.responseCanvas;
+            const canvasBounds = canvas.getBoundingClientRect();
+
+            this.filters.forEach(filter => {
+                filter.x = this.frequencyToX(filter.frequency);
+                filter.y = this.gainToY(filter.gain);
+            });
+
+            this.drawFrequencyResponse();
         },
 
         playAudio() {
@@ -154,17 +385,32 @@ export default {
             const responseCanvas = this.$refs.responseCanvas;
 
             if (analyserCanvas && responseCanvas) {
+                // Set canvas dimensions
                 analyserCanvas.width = analyserCanvas.offsetWidth * window.devicePixelRatio;
                 analyserCanvas.height = analyserCanvas.offsetHeight * window.devicePixelRatio;
                 responseCanvas.width = responseCanvas.offsetWidth * window.devicePixelRatio;
                 responseCanvas.height = responseCanvas.offsetHeight * window.devicePixelRatio;
 
+                // Initialize filter positions
+                this.initializeFilterPositions();
+
+                // Start visualizations
                 this.drawAnalyzer();
+                this.drawFrequencyResponse();
             }
+
+            // Observe canvas resizing
+            this.resizeObserver = new ResizeObserver(() => {
+                this.onResize();
+            });
+            this.resizeObserver.observe(responseCanvas);
         });
     },
 
     beforeUnmount() {
+        if (this.resizeObserver) {
+            this.resizeObserver.disconnect();
+        }
         if (this.animationFrame) {
             cancelAnimationFrame(this.animationFrame);
         }
@@ -220,11 +466,16 @@ export default {
                                 <div class="visualization-container w-full h-64 relative mb-4">
                                     <canvas ref="analyserCanvas"
                                         class="absolute top-0 left-0 w-full h-full z-20"></canvas>
-                                    <canvas ref="responseCanvas"
-                                        class="absolute top-0 left-0 w-full h-full z-30"></canvas>
+                                    <canvas ref="responseCanvas" class="absolute top-0 left-0 w-full h-full z-30"
+                                        @pointermove="handleDrag" @pointerup="stopDragging"
+                                        @pointerleave="stopDragging">
+                                    </canvas>
+                                    <!-- Filter handles -->
                                     <div v-for="(filter, index) in filters" :key="index"
-                                        class="filter-handle absolute z-40" :style="getFilterPosition(filter)"
-                                        @mousedown="startDragging($event, index)">
+                                        class="filter-handle absolute z-40"
+                                        :class="{ 'selected': selectedPoint === index, 'bypassed': filter.bypass }"
+                                        :style="getFilterPosition(filter)" @pointerdown="startDragging($event, index)"
+                                        tabindex="0">
                                         {{ index + 1 }}
                                     </div>
                                 </div>
