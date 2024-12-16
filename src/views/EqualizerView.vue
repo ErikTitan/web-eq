@@ -1,9 +1,10 @@
 <script>
 import Card from 'primevue/card';
 import Button from 'primevue/button';
+import { WEQ8Runtime } from 'weq8'
 
 export default {
-    name: 'equalizer',
+    name: 'Equalizer',
     components: {
         Card,
         Button,
@@ -11,20 +12,188 @@ export default {
     data() {
         return {
             preset: {
-                name: 'Untitled Preset',
+                name: 'Equalizer',
                 description: '',
-                bands: []
+            },
+            analyserNode: null,
+            animationFrame: null,
+            audio: null,
+            audioContext: null,
+            source: null,
+            weq8: null,
+            filters: [
+                { type: 'lowshelf12', frequency: 80, gain: 0, Q: 1, bypass: false },
+                { type: 'peaking12', frequency: 200, gain: 0, Q: 1, bypass: false },
+                { type: 'peaking12', frequency: 500, gain: 0, Q: 1, bypass: false },
+                { type: 'peaking12', frequency: 1000, gain: 0, Q: 1, bypass: false },
+                { type: 'peaking12', frequency: 2500, gain: 0, Q: 1, bypass: false },
+                { type: 'peaking12', frequency: 5000, gain: 0, Q: 1, bypass: false },
+                { type: 'peaking12', frequency: 10000, gain: 0, Q: 1, bypass: false },
+                { type: 'highshelf12', frequency: 12000, gain: 0, Q: 1, bypass: false }
+            ],
+            selectedPoint: null,
+            isDragging: false,
+        }
+    },
+    methods: {
+        initializeAudio() {
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const audioPath = new URL('@/assets/audio/sample_audio.mp3', import.meta.url).href;
+            this.audio = new Audio(audioPath);
+            this.source = this.audioContext.createMediaElementSource(this.audio);
+            this.weq8 = new WEQ8Runtime(this.audioContext);
+
+            // Configure analyzer
+            this.analyserNode = this.audioContext.createAnalyser();
+            this.analyserNode.fftSize = 8192;
+            this.analyserNode.smoothingTimeConstant = 0.5;
+
+            // Connect audio chain
+            this.source.connect(this.weq8.input);
+            this.weq8.connect(this.analyserNode);
+            this.analyserNode.connect(this.audioContext.destination);
+        },
+
+        setupVisualizers() {
+            const analyserCanvas = this.$refs.analyserCanvas;
+            const responseCanvas = this.$refs.responseCanvas;
+
+            [analyserCanvas, responseCanvas].forEach(canvas => {
+                canvas.width = canvas.offsetWidth * window.devicePixelRatio;
+                canvas.height = canvas.offsetHeight * window.devicePixelRatio;
+            });
+
+            this.drawAnalyzer();
+        },
+
+        drawAnalyzer() {
+            const canvas = this.$refs.analyserCanvas;
+            const ctx = canvas.getContext('2d');
+            const data = new Uint8Array(this.analyserNode.frequencyBinCount);
+
+            const draw = () => {
+                this.animationFrame = requestAnimationFrame(draw);
+                this.analyserNode.getByteFrequencyData(data);
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                let path = new Path2D();
+                path.moveTo(0, canvas.height);
+
+                for (let i = 0; i < data.length; i++) {
+                    const x = (i / data.length) * canvas.width;
+                    const y = canvas.height - (data[i] / 255) * canvas.height;
+                    path.lineTo(x, y);
+                }
+
+                path.lineTo(canvas.width, canvas.height);
+
+                ctx.fillStyle = 'rgba(16, 185, 129, 0.7)';
+                ctx.fill(path);
+
+                ctx.strokeStyle = 'rgb(236, 72, 153)';
+                ctx.stroke(path);
+            };
+
+            draw();
+        },
+
+        getFilterPosition(filter) {
+            if (!this.$refs.responseCanvas) return '';
+            const x = this.frequencyToX(filter.frequency);
+            const y = this.gainToY(filter.gain);
+            return `transform: translate(${x}px, ${y}px)`;
+        },
+
+        frequencyToX(freq) {
+            if (!this.$refs.responseCanvas) return 0;
+            const minF = Math.log10(20);
+            const maxF = Math.log10(20000);
+            return ((Math.log10(freq) - minF) / (maxF - minF)) * this.$refs.responseCanvas.width;
+        },
+
+        gainToY(gain) {
+            const canvas = this.$refs.responseCanvas;
+            return canvas.height / 2 - (gain * canvas.height / 30);
+        },
+
+        playAudio() {
+            if (this.audioContext.state === 'suspended') {
+                this.audioContext.resume();
+            }
+            this.audio.play();
+        },
+
+        pauseAudio() {
+            this.audio.pause();
+        }
+    },
+
+    //placeholder methods
+    savePreset() {
+        // Implement preset saving logic
+        console.log('Save preset');
+    },
+
+    loadPreset() {
+        // Implement preset loading logic
+        console.log('Load preset');
+    },
+
+    resetEQ() {
+        this.filters = this.filters.map(filter => ({
+            ...filter,
+            gain: 0,
+            bypass: false
+        }));
+    },
+
+    mounted() {
+        this.initializeAudio();
+        this.$nextTick(() => {
+            const analyserCanvas = this.$refs.analyserCanvas;
+            const responseCanvas = this.$refs.responseCanvas;
+
+            if (analyserCanvas && responseCanvas) {
+                analyserCanvas.width = analyserCanvas.offsetWidth * window.devicePixelRatio;
+                analyserCanvas.height = analyserCanvas.offsetHeight * window.devicePixelRatio;
+                responseCanvas.width = responseCanvas.offsetWidth * window.devicePixelRatio;
+                responseCanvas.height = responseCanvas.offsetHeight * window.devicePixelRatio;
+
+                this.drawAnalyzer();
+            }
+        });
+    },
+
+    beforeUnmount() {
+        if (this.animationFrame) {
+            cancelAnimationFrame(this.animationFrame);
+        }
+        if (this.audio) {
+            this.audio.pause();
+            this.audio = null;
+        }
+        if (this.audioContext) {
+            this.audioContext.close();
+        }
+    },
+
+    watch: {
+        filters: {
+            deep: true,
+            handler() {
+                this.drawFrequencyResponse();
             }
         }
     }
+
 }
 </script>
 
 <template>
-    <div class="flex flex-col min-h-screen">
+    <div class="flex flex-col">
         <div class="flex-1 pt-24 px-6 lg:px-20">
             <div class="grid grid-cols-12 gap-6">
-
+                <!-- Left Card -->
                 <div class="col-span-12 lg:col-span-3">
                     <Card class="h-full">
                         <template #title>
@@ -32,36 +201,71 @@ export default {
                         </template>
                         <template #content>
                             <div class="flex flex-col gap-4">
-                                <Button label="Save Preset" severity="primary" rounded />
-                                <Button label="Load Preset" outlined rounded />
-                                <Button label="Reset" severity="secondary" outlined rounded />
+                                <Button label="Save Preset" severity="primary" rounded @click="savePreset" />
+                                <Button label="Load Preset" outlined rounded @click="loadPreset" />
+                                <Button label="Reset" severity="secondary" outlined rounded @click="resetEQ" />
                             </div>
                         </template>
                     </Card>
                 </div>
+
+                <!-- Middle Card -->
                 <div class="col-span-12 lg:col-span-6">
                     <Card class="h-full">
                         <template #title>
                             <div class="text-2xl font-semibold mb-4">{{ preset.name }}</div>
                         </template>
                         <template #content>
-                            <div class="flex items-center justify-center h-[400px]">
-                                <div class="text-xl text-center text-gray-500">
-                                    Equalizer Graph Placeholder
+                            <div class="flex flex-col items-center justify-center">
+                                <div class="visualization-container w-full h-64 relative mb-4">
+                                    <canvas ref="analyserCanvas"
+                                        class="absolute top-0 left-0 w-full h-full z-20"></canvas>
+                                    <canvas ref="responseCanvas"
+                                        class="absolute top-0 left-0 w-full h-full z-30"></canvas>
+                                    <div v-for="(filter, index) in filters" :key="index"
+                                        class="filter-handle absolute z-40" :style="getFilterPosition(filter)"
+                                        @mousedown="startDragging($event, index)">
+                                        {{ index + 1 }}
+                                    </div>
+                                </div>
+                                <div class="flex gap-4">
+                                    <Button icon="pi pi-play" severity="success" @click="playAudio" />
+                                    <Button icon="pi pi-pause" severity="secondary" @click="pauseAudio" />
                                 </div>
                             </div>
                         </template>
                     </Card>
                 </div>
 
+                <!-- Right Card -->
                 <div class="col-span-12 lg:col-span-3">
                     <Card class="h-full">
                         <template #title>
                             <div class="text-2xl font-semibold mb-4">Band Controls</div>
                         </template>
                         <template #content>
-                            <div class="flex flex-col gap-4">
-                                <Button label="Add Band" severity="primary" rounded icon="pi pi-plus" />
+                            <div class="filters-container">
+                                <div class="filter-control" v-for="(filter, index) in filters" :key="index">
+                                    <div>Band {{ index + 1 }}</div>
+                                    <div class="flex items-center gap-2">
+                                        <label>Frequency:</label>
+                                        <input type="number" v-model.number="filter.frequency"
+                                            @change="updateFilter(index, 'frequency', filter.frequency)" min="20"
+                                            max="20000" />
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <label>Gain:</label>
+                                        <input type="range" v-model.number="filter.gain"
+                                            @input="updateFilter(index, 'gain', filter.gain)" min="-15" max="15"
+                                            step="0.1" />
+                                        <span>{{ filter.gain.toFixed(1) }} dB</span>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <label>Bypass:</label>
+                                        <input type="checkbox" v-model="filter.bypass"
+                                            @change="updateFilter(index, 'bypass', filter.bypass)" />
+                                    </div>
+                                </div>
                             </div>
                         </template>
                     </Card>
@@ -71,10 +275,47 @@ export default {
     </div>
 </template>
 
+
+
 <style scoped>
-.p-card {
-    background: var(--p-surface-card);
-    border: 1px solid var(--p-surface-border);
-    border-radius: var(--border-radius-lg);
+.filter-handle {
+    width: 20px;
+    height: 20px;
+    background-color: #fff;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    user-select: none;
+    cursor: grab;
+    transition: background-color 0.15s ease;
+    color: black;
+    font-weight: bold;
+}
+
+.filter-handle.selected {
+    background: #ffcc00;
+}
+
+.filter-handle.bypassed {
+    background: #7d7d7d;
+}
+
+.visualization-container {
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #475569;
+}
+
+canvas {
+    background: transparent;
+}
+
+.filter-control {
+    margin-bottom: 10px;
+    padding: 10px;
+    border: 1px solid #333;
+    border-radius: 5px;
 }
 </style>
