@@ -26,10 +26,7 @@ export default {
                 { type: 'peaking12', frequency: 200, gain: 0, Q: 1, bypass: false },
                 { type: 'peaking12', frequency: 500, gain: 0, Q: 1, bypass: false },
                 { type: 'peaking12', frequency: 1000, gain: 0, Q: 1, bypass: false },
-                { type: 'peaking12', frequency: 2500, gain: 0, Q: 1, bypass: false },
-                { type: 'peaking12', frequency: 5000, gain: 0, Q: 1, bypass: false },
-                { type: 'peaking12', frequency: 10000, gain: 0, Q: 1, bypass: false },
-                { type: 'highshelf12', frequency: 12000, gain: 0, Q: 1, bypass: false }
+
             ],
             selectedPoint: null,
             isDragging: false,
@@ -655,17 +652,17 @@ export default {
 <template>
     <div class="flex flex-col">
         <div class="flex-1 pt-24 px-6 lg:px-20">
-            <div class="grid grid-cols-12 gap-6">
+            <div class="grid grid-cols-12 gap-6 h-full">
                 <!-- Left Card -->
-                <div class="col-span-12 lg:col-span-3">
+                <div class="col-span-12 lg:col-span-2">
                     <Card class="h-full">
                         <template #title>
-                            <div class="text-2xl font-semibold mb-4">Preset Controls</div>
+                            <div class="text-xl font-semibold mb-2">Controls</div>
                         </template>
                         <template #content>
-                            <div class="flex flex-col gap-4">
-                                <Button label="Save Preset" severity="primary" rounded @click="savePreset" />
-                                <Button label="Load Preset" outlined rounded @click="loadPreset" />
+                            <div class="flex flex-col gap-2">
+                                <Button label="Save" severity="primary" rounded @click="savePreset" />
+                                <Button label="Load" outlined rounded @click="loadPreset" />
                                 <Button label="Reset" severity="secondary" outlined rounded @click="resetEQ" />
                             </div>
                         </template>
@@ -673,15 +670,14 @@ export default {
                 </div>
 
                 <!-- Middle Card -->
-                <div class="col-span-12 lg:col-span-6">
+                <div class="col-span-12 lg:col-span-8">
                     <Card class="h-full">
                         <template #title>
                             <div class="text-2xl font-semibold mb-4">{{ preset.name }}</div>
                         </template>
                         <template #content>
                             <div class="flex flex-col items-center justify-center">
-                                <div
-                                    class="visualization-container w-full h-64 relative mb-4 bg-gray-900 rounded-lg overflow-hidden">
+                                <div class="border w-full h-96 relative mb-6 bg-gray-900 rounded-lg overflow-hidden">
                                     <!-- Grid Canvas (bottom layer) -->
                                     <canvas ref="gridCanvas" class="absolute top-0 left-0 w-full h-full z-10"></canvas>
 
@@ -717,33 +713,31 @@ export default {
                 </div>
 
                 <!-- Right Card -->
-                <div class="col-span-12 lg:col-span-3">
+                <div class="col-span-12 lg:col-span-2">
                     <Card class="h-full">
                         <template #title>
                             <div class="text-2xl font-semibold mb-4">Band Controls</div>
                         </template>
                         <template #content>
-                            <div class="filters-container">
-                                <div class="filter-control" v-for="(filter, index) in filters" :key="index">
-                                    <div>Band {{ index + 1 }}</div>
-                                    <div class="flex items-center gap-2">
-                                        <label>Frequency:</label>
-                                        <input type="number" v-model.number="filter.frequency"
-                                            @change="updateFilter(index, 'frequency', filter.frequency)" min="20"
-                                            max="20000" />
-                                    </div>
-                                    <div class="flex items-center gap-2">
-                                        <label>Gain:</label>
-                                        <input type="range" v-model.number="filter.gain"
-                                            @input="updateFilter(index, 'gain', filter.gain)" min="-15" max="15"
-                                            step="0.1" />
-                                        <span>{{ filter.gain.toFixed(1) }} dB</span>
-                                    </div>
-                                    <div class="flex items-center gap-2">
-                                        <label>Bypass:</label>
-                                        <input type="checkbox" v-model="filter.bypass"
-                                            @change="updateFilter(index, 'bypass', filter.bypass)" />
-                                    </div>
+                            <div class="mb-10 border rounded-lg px-2" v-for="(filter, index) in filters" :key="index">
+                                <div>Band {{ index + 1 }}</div>
+                                <div class="flex items-center gap-2">
+                                    <label>Frequency:</label>
+                                    <input type="number" v-model.number="filter.frequency"
+                                        @change="updateFilter(index, 'frequency', filter.frequency)" min="20"
+                                        max="20000" />
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <label>Gain:</label>
+                                    <input type="range" v-model.number="filter.gain"
+                                        @input="updateFilter(index, 'gain', filter.gain)" min="-15" max="15"
+                                        step="0.1" />
+                                    <span>{{ filter.gain.toFixed(1) }} dB</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <label>Bypass:</label>
+                                    <input type="checkbox" v-model="filter.bypass"
+                                        @change="updateFilter(index, 'bypass', filter.bypass)" />
                                 </div>
                             </div>
                         </template>
@@ -810,20 +804,8 @@ export default {
     opacity: 1;
 }
 
-.visualization-container {
-    border: 1px solid #475569;
-    background: rgba(17, 24, 39, 0.95);
-}
-
 canvas {
     image-rendering: pixelated;
     background: transparent;
-}
-
-.filter-control {
-    margin-bottom: 10px;
-    padding: 10px;
-    border: 1px solid #333;
-    border-radius: 5px;
 }
 </style>
