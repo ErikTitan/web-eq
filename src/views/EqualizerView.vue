@@ -88,24 +88,22 @@ export default {
                 if (!canvas) return;
 
                 const devicePixelRatio = window.devicePixelRatio || 1;
-                const canvasWidth = canvas.width / devicePixelRatio;
-                const canvasHeight = canvas.height / devicePixelRatio;
+                const width = canvas.width / devicePixelRatio;
+                const height = canvas.height / devicePixelRatio;
+
+                // Initialize filters with logarithmically spaced frequencies
+                const minF = Math.log10(20);
+                const maxF = Math.log10(this.nyquist);
+                const step = (maxF - minF) / (this.filters.length - 1);
 
                 this.filters = this.filters.map((filter, index) => {
-                    const minF = Math.log10(20);
-                    const maxF = Math.log10(20000);
-                    const step = (maxF - minF) / (this.filters.length - 1);
                     const frequency = Math.pow(10, minF + step * index);
-
-                    const normalizedX = (Math.log10(frequency) - minF) / (maxF - minF);
-                    const normalizedY = 0.5; // Center Y for initial positions
-
                     return {
                         ...filter,
                         frequency,
                         gain: 0,
-                        x: normalizedX * canvasWidth,
-                        y: normalizedY * canvasHeight
+                        Q: filter.Q || 1,
+                        bypass: false
                     };
                 });
 
@@ -356,24 +354,22 @@ export default {
         },
 
         getFilterPosition(filter) {
-            if (!this.$refs.responseCanvas) return { x: 0, y: 0 };
+            if (!this.$refs.responseCanvas) return { transform: 'translate(0px, 0px)' };
 
-            const width = this.$refs.responseCanvas.offsetWidth;
-            const height = this.$refs.responseCanvas.offsetHeight;
-            const nyquist = this.audioContext.sampleRate / 2;
+            const canvas = this.$refs.responseCanvas;
+            const rect = canvas.getBoundingClientRect();
 
-            const x = this.toLog10(filter.frequency, 10, nyquist) * width;
-            let y;
+            // Convert frequency to x position (logarithmic scale)
+            const minF = Math.log10(20);
+            const maxF = Math.log10(this.nyquist);
+            const logPos = (Math.log10(filter.frequency) - minF) / (maxF - minF);
+            const x = logPos * rect.width;
 
-            if (this.filterHasGain(filter.type)) {
-                y = height - ((filter.gain + 15) / 30) * height;
-            } else {
-                y = height - this.toLog10(filter.Q, 0.1, 18) * height;
-            }
+            // Convert gain to y position (linear scale)
+            const y = rect.height - ((filter.gain + 15) / 30) * rect.height;
 
             return {
-                x: Math.max(0, Math.min(x, width)),
-                y: Math.max(0, Math.min(y, height))
+                transform: `translate(${x}px, ${y}px)`
             };
         },
 
@@ -423,13 +419,23 @@ export default {
 
         frequencyToX(freq) {
             const canvas = this.$refs.responseCanvas;
-            return this.toLog10(freq, 20, this.audioContext.sampleRate / 2) * canvas.width;
+            if (!canvas) return 0;
+
+            const width = canvas.width / (window.devicePixelRatio || 1);
+            const minF = Math.log10(20);
+            const maxF = Math.log10(this.nyquist);
+            const logPos = (Math.log10(freq) - minF) / (maxF - minF);
+
+            return logPos * width;
         },
 
         gainToY(gain) {
-            if (!this.$refs.responseCanvas) return 0;
             const canvas = this.$refs.responseCanvas;
-            return canvas.height / 2 - (gain * canvas.height / 30);
+            if (!canvas) return 0;
+
+            const height = canvas.height / (window.devicePixelRatio || 1);
+            // Convert gain to Y position (center is 0dB)
+            return height - ((gain + 15) / 30) * height;
         },
 
         xToFrequency(x) {
@@ -444,17 +450,24 @@ export default {
         },
 
         startDragging(event, index) {
-            // Prevent default to stop text selection
             event.preventDefault();
+            event.stopPropagation();
 
-            // Use pointer capture to track drag even if mouse moves outside element
-            event.target.setPointerCapture(event.pointerId);
+            // Capture the pointer
+            const handle = event.target;
+            handle.setPointerCapture(event.pointerId);
 
             this.selectedPoint = index;
             this.isDragging = true;
+        },
 
-            // Initial drag handling
-            this.handleDrag(event);
+        stopDragging(event) {
+            if (this.selectedPoint !== null) {
+                const handle = event.target;
+                handle.releasePointerCapture(event.pointerId);
+            }
+            this.isDragging = false;
+            this.selectedPoint = null;
         },
 
         handleDrag(event) {
@@ -462,22 +475,31 @@ export default {
 
             const canvas = this.$refs.responseCanvas;
             const rect = canvas.getBoundingClientRect();
+
+            // Get mouse position relative to canvas
             const x = event.clientX - rect.left;
             const y = event.clientY - rect.top;
 
-            const nyquist = this.audioContext.sampleRate / 2;
-            const frequency = this.toLin(x / canvas.width, 10, nyquist);
+            // Convert x position to frequency (logarithmic)
+            const width = rect.width;
+            const minF = Math.log10(20);
+            const maxF = Math.log10(this.nyquist);
+            const logX = (x / width) * (maxF - minF) + minF;
+            const newFreq = Math.pow(10, logX);
 
+            // Convert y position to gain (-15dB to +15dB)
+            const height = rect.height;
+            const newGain = 15 - ((y / height) * 30);
+
+            // Update filter values
             const filter = this.filters[this.selectedPoint];
             if (this.filterHasGain(filter.type)) {
-                const gain = ((1 - y / canvas.height) * 30) - 15;
-                this.updateFilter(this.selectedPoint, 'gain', Math.max(-15, Math.min(15, gain)));
-            } else {
-                const Q = this.toLin(1 - y / canvas.height, 0.1, 18);
-                this.updateFilter(this.selectedPoint, 'Q', Q);
+                this.updateFilter(this.selectedPoint, 'gain', Math.max(-15, Math.min(15, newGain)));
             }
 
-            this.updateFilter(this.selectedPoint, 'frequency', frequency);
+            // Update frequency
+            const clampedFreq = Math.max(20, Math.min(this.nyquist, newFreq));
+            this.updateFilter(this.selectedPoint, 'frequency', clampedFreq);
         },
 
         filterHasGain(type) {
@@ -522,14 +544,6 @@ export default {
                 return "kHz";
             }
             return "Hz";
-        },
-
-        stopDragging(event) {
-            if (this.selectedPoint !== null) {
-                event.target.releasePointerCapture(event.pointerId);
-            }
-            this.isDragging = false;
-            this.selectedPoint = null;
         },
 
         onResize() {
@@ -578,44 +592,34 @@ export default {
     mounted() {
         this.initializeAudio();
         this.$nextTick(() => {
-            // Initialize canvases with proper dimensions
-            const canvases = ['analyserCanvas', 'responseCanvas'];
-            canvases.forEach(canvasRef => {
-                const canvas = this.$refs[canvasRef];
+            const setupCanvas = (canvas) => {
                 if (canvas) {
-                    canvas.width = canvas.offsetWidth * window.devicePixelRatio;
-                    canvas.height = canvas.offsetHeight * window.devicePixelRatio;
+                    const rect = canvas.getBoundingClientRect();
+                    const dpr = window.devicePixelRatio || 1;
+                    canvas.width = rect.width * dpr;
+                    canvas.height = rect.height * dpr;
+                    const ctx = canvas.getContext('2d');
+                    ctx.scale(dpr, dpr);
                 }
-            });
+            };
 
-            // Ensure analyzer is started
+            setupCanvas(this.$refs.analyserCanvas);
+            setupCanvas(this.$refs.responseCanvas);
+            setupCanvas(this.$refs.gridCanvas);
+
+            this.initializeFilterPositions();
+            this.drawFrequencyResponse();
             if (this.$refs.analyserCanvas) {
                 this.updateAnalysisPositions();
-                this.drawAnalyzer(); // Start the animation loop
+                this.drawAnalyzer();
             }
         });
-        this.$nextTick(() => {
-            const responseCanvas = this.$refs.responseCanvas;
+    },
 
-            if (responseCanvas) {
-                this.initializeFrequencyResponse();
-
-                this.resizeObserver = new ResizeObserver(() => {
-                    responseCanvas.width = responseCanvas.offsetWidth * window.devicePixelRatio;
-                    responseCanvas.height = responseCanvas.offsetHeight * window.devicePixelRatio;
-
-                    this.frequencies = this.calculateFrequencies();
-                    this.filterMagResponse = new Float32Array(this.frequencies.length);
-                    this.filterPhaseResponse = new Float32Array(this.frequencies.length);
-                    this.frequencyResponse = new Float32Array(this.frequencies.length);
-
-                    this.drawFrequencyResponse();
-                });
-
-                this.resizeObserver.observe(responseCanvas);
-                this.drawFrequencyResponse();
-            }
-        });
+    computed: {
+        nyquist() {
+            return this.audioContext ? this.audioContext.sampleRate / 2 : 24000;
+        }
     },
 
     beforeUnmount() {
@@ -673,7 +677,7 @@ export default {
                 <div class="col-span-12 lg:col-span-8">
                     <Card class="h-full">
                         <template #title>
-                            <div class="text-2xl font-semibold mb-4">{{ preset.name }}</div>
+                            <div class="text-2xl font-semibold mb-2">{{ preset.name }}</div>
                         </template>
                         <template #content>
                             <div class="flex flex-col items-center justify-center">
@@ -686,7 +690,7 @@ export default {
                                         class="absolute top-0 left-0 w-full h-full z-20"></canvas>
 
                                     <!-- Response Canvas (top layer) -->
-                                    <canvas ref="responseCanvas" class="absolute top-0 left-0 w-full h-full z-30"
+                                    <canvas ref="responseCanvas" class="absolute inset-0 w-full h-full z-30"
                                         @pointermove="handleDrag" @pointerup="stopDragging"
                                         @pointerleave="stopDragging"></canvas>
 
@@ -698,7 +702,8 @@ export default {
                                             'has-gain': filterHasGain(filter.type),
                                             'has-q': filterHasQ(filter.type)
                                         }" :style="getFilterPosition(filter)"
-                                        @mousedown="startDragging($event, index)">
+                                        @pointerdown="startDragging($event, index)" @pointermove="handleDrag"
+                                        @pointerup="stopDragging" @pointercancel="stopDragging">
                                         <span class="filter-number">{{ index + 1 }}</span>
                                         <span class="filter-freq">{{ getFilterLabel(filter) }}</span>
                                     </div>
@@ -716,10 +721,10 @@ export default {
                 <div class="col-span-12 lg:col-span-2">
                     <Card class="h-full">
                         <template #title>
-                            <div class="text-2xl font-semibold mb-4">Band Controls</div>
+                            <div class="text-xl font-semibold mb-2">Band Controls</div>
                         </template>
                         <template #content>
-                            <div class="mb-10 border rounded-lg px-2" v-for="(filter, index) in filters" :key="index">
+                            <div class="mb-3 border rounded-lg px-2" v-for="(filter, index) in filters" :key="index">
                                 <div>Band {{ index + 1 }}</div>
                                 <div class="flex items-center gap-2">
                                     <label>Frequency:</label>
@@ -752,32 +757,45 @@ export default {
 
 <style scoped>
 .filter-handle {
+    position: absolute;
     width: 24px;
     height: 24px;
-    background: var(--primary-color);
-    border: 2px solid #fff;
+    margin: -12px 0 0 -12px;
+    background: rgba(79, 70, 229, 0.8);
+    border: 2px solid rgba(255, 255, 255, 0.8);
     border-radius: 50%;
-    transform: translate(-50%, -50%);
+    cursor: grab;
+    z-index: 40;
+    user-select: none;
+    will-change: transform;
+    touch-action: none;
+    backdrop-filter: blur(4px);
+    box-shadow:
+        inset 0 2px 4px rgba(255, 255, 255, 0.3),
+        0 4px 8px rgba(0, 0, 0, 0.2);
     display: flex;
     align-items: center;
     justify-content: center;
-    cursor: grab;
-    color: #000;
-    font-weight: bold;
-    transition: all 0.2s ease;
-    user-select: none;
-    pointer-events: auto;
+}
+
+.filter-handle .filter-number {
+    color: white;
+    font-size: 14px;
+    font-weight: 500;
 }
 
 .filter-handle.selected {
-    background: #ffcc00;
-    transform: translate(-50%, -50%) scale(1.2);
-    z-index: 50;
+    background: rgba(255, 204, 0, 0.8);
+    transform: scale(1.1);
+    box-shadow:
+        inset 0 2px 4px rgba(255, 255, 255, 0.4),
+        0 6px 12px rgba(255, 204, 0, 0.3);
 }
 
 .filter-handle.bypassed {
-    background: #7d7d7d;
-    opacity: 0.7;
+    background: rgba(125, 125, 125, 0.6);
+    border-color: rgba(255, 255, 255, 0.4);
+    box-shadow: none;
 }
 
 .filter-handle:active {
@@ -786,17 +804,19 @@ export default {
 
 .filter-freq {
     position: absolute;
-    top: -20px;
+    top: -24px;
     left: 50%;
     transform: translateX(-50%);
     background: rgba(0, 0, 0, 0.8);
-    padding: 2px 6px;
-    border-radius: 4px;
+    padding: 1px 4px;
+    border-radius: 6px;
     color: white;
     font-size: 0.75rem;
     white-space: nowrap;
     opacity: 0;
     transition: opacity 0.2s;
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .filter-handle:hover .filter-freq,
