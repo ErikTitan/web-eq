@@ -379,10 +379,6 @@ export default {
             this.drawFrequencyResponse();
         },
 
-        filterHasFrequency(type) {
-            return type !== 'noop';
-        },
-
         filterHasGain(type) {
             return [
                 'lowshelf12', 'lowshelf24',
@@ -492,18 +488,6 @@ export default {
             this.updateFilter(index, 'Q', newQ);
         },
         // Helper methods
-        toLog10(lin, minLin, maxLin) {
-            const minLog = Math.log10(minLin);
-            const maxLog = Math.log10(maxLin);
-            return (Math.log10(Math.min(Math.max(lin, minLin, maxLin))) - minLog) / (maxLog - minLog);
-        },
-
-        toLin(log, minLin, maxLin) {
-            const minLog = Math.log10(minLin);
-            const maxLog = Math.log10(maxLin);
-            return Math.min(Math.max(Math.pow(10, log * (maxLog - minLog) + minLog), minLin, maxLin));
-        },
-
         formatFrequency(freq, keepHz = false) {
             if (freq >= 1000 && !keepHz) {
                 return (freq / 1000).toFixed(2);
