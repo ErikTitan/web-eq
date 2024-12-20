@@ -642,12 +642,20 @@ export default {
         },
 
         resetEQ() {
-            this.filters = this.filters.map(filter => ({
-                ...filter,
-                gain: 0,
-                bypass: false
-            }));
-        },
+            // Reset using the same initialization logic
+            this.initializeFilterPositions();
+
+            // Update WEQ8 runtime for each filter
+            this.filters.forEach((filter, index) => {
+                this.weq8.setFilterFrequency(index, filter.frequency);
+                this.weq8.setFilterGain(index, 0);
+                this.weq8.toggleBypass(index, false);
+            });
+
+            // Redraw the frequency response curve
+            this.drawFrequencyResponse();
+        }
+        ,
     },
 
     mounted() {
