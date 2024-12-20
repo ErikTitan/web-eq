@@ -110,7 +110,7 @@ export default {
                 this.drawFrequencyResponse();
             });
         },
-        // Analyzer methods
+
         initializeAnalyzer() {
             // Set up analyzer node
             this.analyserNode = this.audioContext.createAnalyser();
@@ -137,7 +137,7 @@ export default {
                 this.resizeObserver.observe(this.$refs.analyserCanvas);
             }
         },
-
+        // Analyzer methods
         updateAnalysisPositions() {
             const canvas = this.$refs.analyserCanvas;
             if (!canvas) return;
@@ -207,24 +207,13 @@ export default {
             ctx.strokeStyle = 'rgba(236, 72, 153, 0.8)';
             ctx.lineWidth = 1;
             ctx.stroke(path);
+            ctx.shadowBlur = 0;
 
             // Request next frame
             this.animationFrame = requestAnimationFrame(() => this.drawAnalyzer());
         },
 
-        calculateFrequencies() {
-            const canvas = this.$refs.responseCanvas;
-            const frequencies = new Float32Array(canvas.width);
-            const nyquist = this.audioContext.sampleRate / 2;
-            const minLog = 1;
-            const maxLog = Math.log10(nyquist);
 
-            for (let x = 0; x < canvas.width; x++) {
-                const log = minLog + (x / canvas.width) * (maxLog - minLog);
-                frequencies[x] = Math.pow(10, log);
-            }
-            return frequencies;
-        },
         // Frequency grid methods
         calculateGridLines() {
             const nyquist = this.audioContext.sampleRate / 2;
@@ -272,6 +261,19 @@ export default {
             });
         },
         // Frequency Response methods
+        calculateFrequencies() {
+            const canvas = this.$refs.responseCanvas;
+            const frequencies = new Float32Array(canvas.width);
+            const nyquist = this.audioContext.sampleRate / 2;
+            const minLog = 1;
+            const maxLog = Math.log10(nyquist);
+
+            for (let x = 0; x < canvas.width; x++) {
+                const log = minLog + (x / canvas.width) * (maxLog - minLog);
+                frequencies[x] = Math.pow(10, log);
+            }
+            return frequencies;
+        },
         drawFrequencyResponse() {
             const canvas = this.$refs.responseCanvas;
             const ctx = canvas.getContext('2d');
@@ -528,7 +530,7 @@ export default {
                 'notch12', 'notch24'
             ].includes(type);
         },
-
+        // Helper methods
         toLog10(lin, minLin, maxLin) {
             const minLog = Math.log10(minLin);
             const maxLog = Math.log10(maxLin);
@@ -576,24 +578,23 @@ export default {
 
         pauseAudio() {
             this.audio.pause();
-        }
-    },
+        },
+        //placeholder methods
+        savePreset() {
+            console.log('Save preset');
+        },
 
-    //placeholder methods
-    savePreset() {
-        console.log('Save preset');
-    },
+        loadPreset() {
+            console.log('Load preset');
+        },
 
-    loadPreset() {
-        console.log('Load preset');
-    },
-
-    resetEQ() {
-        this.filters = this.filters.map(filter => ({
-            ...filter,
-            gain: 0,
-            bypass: false
-        }));
+        resetEQ() {
+            this.filters = this.filters.map(filter => ({
+                ...filter,
+                gain: 0,
+                bypass: false
+            }));
+        },
     },
 
     mounted() {
