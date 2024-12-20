@@ -1,6 +1,8 @@
 <script>
 import Card from 'primevue/card';
 import Button from 'primevue/button';
+import InputNumber from 'primevue/inputnumber';
+import Slider from 'primevue/slider';
 import { WEQ8Runtime } from 'weq8'
 
 export default {
@@ -8,6 +10,8 @@ export default {
     components: {
         Card,
         Button,
+        InputNumber,
+        Slider,
     },
     data() {
         return {
@@ -26,7 +30,16 @@ export default {
                 { type: 'peaking12', frequency: 200, gain: 0, Q: 1, bypass: false },
                 { type: 'peaking12', frequency: 500, gain: 0, Q: 1, bypass: false },
                 { type: 'peaking12', frequency: 1000, gain: 0, Q: 1, bypass: false },
-
+            ],
+            filterTypes: [
+                { label: 'LP', value: 'lowpass12' },
+                { label: 'HP', value: 'highpass12' },
+                { label: 'BP', value: 'bandpass12' },
+                { label: 'LS', value: 'lowshelf12' },
+                { label: 'HS', value: 'highshelf12' },
+                { label: 'PK', value: 'peaking12' },
+                { label: 'NO', value: 'notch12' },
+                { label: 'OFF', value: 'noop' }
             ],
             selectedPoint: null,
             isDragging: false,
@@ -54,7 +67,6 @@ export default {
         },
 
         initializeFrequencyResponse() {
-            const canvas = this.$refs.responseCanvas;
             this.frequencies = this.calculateFrequencies();
             this.filterMagResponse = new Float32Array(this.frequencies.length);
             this.filterPhaseResponse = new Float32Array(this.frequencies.length);
@@ -212,8 +224,6 @@ export default {
             // Request next frame
             this.animationFrame = requestAnimationFrame(() => this.drawAnalyzer());
         },
-
-
         // Frequency grid methods
         calculateGridLines() {
             const nyquist = this.audioContext.sampleRate / 2;
@@ -274,6 +284,7 @@ export default {
             }
             return frequencies;
         },
+
         drawFrequencyResponse() {
             const canvas = this.$refs.responseCanvas;
             const ctx = canvas.getContext('2d');
@@ -459,6 +470,48 @@ export default {
             const canvas = this.$refs.responseCanvas;
             return -((y - canvas.height / 2) * 30) / canvas.height;
         },
+
+        filterHasFrequency(type) {
+            return type !== 'noop';
+        },
+
+        filterHasGain(type) {
+            return [
+                'lowshelf12', 'lowshelf24',
+                'highshelf12', 'highshelf24',
+                'peaking12', 'peaking24'
+            ].includes(type);
+        },
+
+        filterHasQ(type) {
+            return [
+                'lowpass12', 'lowpass24',
+                'highpass12', 'highpass24',
+                'bandpass12', 'bandpass24',
+                'peaking12', 'peaking24',
+                'notch12', 'notch24'
+            ].includes(type);
+        },
+
+        incrementValue(index, property, amount) {
+            const filter = this.filters[index];
+            let newValue = filter[property] + amount;
+
+            // Clamp values based on property
+            switch (property) {
+                case 'frequency':
+                    newValue = Math.max(20, Math.min(20000, newValue));
+                    break;
+                case 'gain':
+                    newValue = Math.max(-15, Math.min(15, newValue));
+                    break;
+                case 'Q':
+                    newValue = Math.max(0.1, Math.min(18, newValue));
+                    break;
+            }
+
+            this.updateFilter(index, property, newValue);
+        },
         // Filter handle methods
         startDragging(event, index) {
             event.preventDefault();
@@ -513,22 +566,22 @@ export default {
             this.updateFilter(this.selectedPoint, 'frequency', clampedFreq);
         },
 
-        filterHasGain(type) {
-            return [
-                'lowshelf12', 'lowshelf24',
-                'highshelf12', 'highshelf24',
-                'peaking12', 'peaking24'
-            ].includes(type);
-        },
+        handleFilterScroll(event, index) {
+            // Prevent page scrolling
+            event.preventDefault();
 
-        filterHasQ(type) {
-            return [
-                'lowpass12', 'lowpass24',
-                'highpass12', 'highpass24',
-                'bandpass12', 'bandpass24',
-                'peaking12', 'peaking24',
-                'notch12', 'notch24'
-            ].includes(type);
+            const filter = this.filters[index];
+            if (!this.filterHasQ(filter.type)) return;
+
+            //scroll direction
+            const delta = Math.sign(event.deltaY) * -1; // -1 scroll down, 1 scroll up
+
+            // Calculate new Q value
+            const step = 0.1;
+            const newQ = Math.max(0.1, Math.min(10, filter.Q + (delta * step)));
+
+            // Update the filter Q value
+            this.updateFilter(index, 'Q', newQ);
         },
         // Helper methods
         toLog10(lin, minLin, maxLin) {
@@ -711,9 +764,12 @@ export default {
                                             'has-q': filterHasQ(filter.type)
                                         }" :style="getFilterPosition(filter)"
                                         @pointerdown="startDragging($event, index)" @pointermove="handleDrag"
-                                        @pointerup="stopDragging" @pointercancel="stopDragging">
+                                        @pointerup="stopDragging" @pointercancel="stopDragging"
+                                        @wheel.prevent="handleFilterScroll($event, index)">
                                         <span class="filter-number">{{ index + 1 }}</span>
                                         <span class="filter-freq">{{ getFilterLabel(filter) }}</span>
+                                        <span v-if="filterHasQ(filter.type)" class="filter-q">Q: {{ filter.Q.toFixed(1)
+                                            }}</span>
                                     </div>
                                 </div>
                                 <div class="flex gap-4">
@@ -808,6 +864,27 @@ export default {
 
 .filter-handle:active {
     cursor: grabbing;
+}
+
+.filter-q {
+    position: absolute;
+    bottom: -24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    padding: 1px 4px;
+    border-radius: 6px;
+    color: white;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.2s;
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.filter-handle:hover .filter-q {
+    opacity: 1;
 }
 
 .filter-freq {
