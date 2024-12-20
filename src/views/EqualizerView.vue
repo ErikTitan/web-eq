@@ -45,12 +45,8 @@ export default {
             isDragging: false,
             resizeObserver: null,
             frequencies: null,
-            filterMagResponse: null,
-            filterPhaseResponse: null,
-            frequencyResponse: null,
             analysisData: null,
             analysisXs: [],
-            devicePixelRatio: window.devicePixelRatio || 1,
         }
     },
     methods: {
@@ -62,46 +58,13 @@ export default {
             this.source = this.audioContext.createMediaElementSource(this.audio);
             this.weq8 = new WEQ8Runtime(this.audioContext);
             this.initializeAnalyzer();
-            this.initializeFrequencyResponse();
             this.initializeFilterPositions();
-        },
-
-        initializeFrequencyResponse() {
-            this.frequencies = this.calculateFrequencies();
-            this.filterMagResponse = new Float32Array(this.frequencies.length);
-            this.filterPhaseResponse = new Float32Array(this.frequencies.length);
-            this.frequencyResponse = new Float32Array(this.frequencies.length);
-        },
-
-        setupVisualizers() {
-            const analyserCanvas = this.$refs.analyserCanvas;
-            const responseCanvas = this.$refs.responseCanvas;
-
-            if (analyserCanvas && responseCanvas) {
-                // Set canvas dimensions
-                analyserCanvas.width = analyserCanvas.offsetWidth * window.devicePixelRatio;
-                analyserCanvas.height = analyserCanvas.offsetHeight * window.devicePixelRatio;
-                responseCanvas.width = responseCanvas.offsetWidth * window.devicePixelRatio;
-                responseCanvas.height = responseCanvas.offsetHeight * window.devicePixelRatio;
-
-                // Update filter positions
-                this.initializeFilterPositions();
-
-                // Start visualizations
-                this.drawAnalyzer();
-                this.drawFrequencyResponse();
-
-            }
         },
 
         initializeFilterPositions() {
             this.$nextTick(() => {
                 const canvas = this.$refs.responseCanvas;
                 if (!canvas) return;
-
-                const devicePixelRatio = window.devicePixelRatio || 1;
-                const width = canvas.width / devicePixelRatio;
-                const height = canvas.height / devicePixelRatio;
 
                 // Initialize filters with logarithmically spaced frequencies
                 const minF = Math.log10(20);
@@ -142,7 +105,7 @@ export default {
 
             // Set up resize observer
             this.resizeObserver = new ResizeObserver(() => {
-                this.handleCanvasResize();
+                this.updateAnalysisPositions();
             });
 
             if (this.$refs.analyserCanvas) {
@@ -152,6 +115,7 @@ export default {
         // Analyzer methods
         updateAnalysisPositions() {
             const canvas = this.$refs.analyserCanvas;
+            const nyquist = this.nyquist;
             if (!canvas) return;
 
             // Update canvas dimensions with device pixel ratio
@@ -159,22 +123,12 @@ export default {
             canvas.height = canvas.offsetHeight * this.devicePixelRatio;
 
             // Calculate frequency to x-position mapping
-            const maxLog = Math.log10(this.audioContext.sampleRate / 2) - 1;
+            const maxLog = Math.log10(nyquist) - 1;
 
             this.analysisXs = Array.from(this.analysisData).map((_, i) => {
-                const freq = (i / this.analysisData.length) * (this.audioContext.sampleRate / 2);
+                const freq = (i / this.analysisData.length) * nyquist;
                 return Math.floor(((Math.log10(freq) - 1) / maxLog) * canvas.width);
             });
-        },
-
-        handleCanvasResize() {
-            const canvas = this.$refs.analyserCanvas;
-            if (!canvas) return;
-
-            canvas.width = canvas.offsetWidth * this.devicePixelRatio;
-            canvas.height = canvas.offsetHeight * this.devicePixelRatio;
-
-            this.updateAnalysisPositions();
         },
 
         drawAnalyzer() {
@@ -226,7 +180,7 @@ export default {
         },
         // Frequency grid methods
         calculateGridLines() {
-            const nyquist = this.audioContext.sampleRate / 2;
+            const nyquist = this.nyquist;
             const xLevelsOfScale = Math.floor(Math.log10(nyquist));
             const gridXs = [];
 
@@ -271,20 +225,6 @@ export default {
             });
         },
         // Frequency Response methods
-        calculateFrequencies() {
-            const canvas = this.$refs.responseCanvas;
-            const frequencies = new Float32Array(canvas.width);
-            const nyquist = this.audioContext.sampleRate / 2;
-            const minLog = 1;
-            const maxLog = Math.log10(nyquist);
-
-            for (let x = 0; x < canvas.width; x++) {
-                const log = minLog + (x / canvas.width) * (maxLog - minLog);
-                frequencies[x] = Math.pow(10, log);
-            }
-            return frequencies;
-        },
-
         drawFrequencyResponse() {
             const canvas = this.$refs.responseCanvas;
             const ctx = canvas.getContext('2d');
@@ -297,7 +237,7 @@ export default {
             const frequencies = new Float32Array(canvas.width);
             const magResponse = new Float32Array(canvas.width);
             const phaseResponse = new Float32Array(canvas.width);
-            const nyquist = this.audioContext.sampleRate / 2;
+            const nyquist = this.nyquist;
 
             // Generate logarithmically spaced frequencies
             for (let i = 0; i < frequencies.length; i++) {
@@ -439,38 +379,6 @@ export default {
             this.drawFrequencyResponse();
         },
 
-        frequencyToX(freq) {
-            const canvas = this.$refs.responseCanvas;
-            if (!canvas) return 0;
-
-            const width = canvas.width / (window.devicePixelRatio || 1);
-            const minF = Math.log10(20);
-            const maxF = Math.log10(this.nyquist);
-            const logPos = (Math.log10(freq) - minF) / (maxF - minF);
-
-            return logPos * width;
-        },
-
-        gainToY(gain) {
-            const canvas = this.$refs.responseCanvas;
-            if (!canvas) return 0;
-
-            const height = canvas.height / (window.devicePixelRatio || 1);
-            // Convert gain to Y position (center is 0dB)
-            return height - ((gain + 15) / 30) * height;
-        },
-
-        xToFrequency(x) {
-            const canvas = this.$refs.responseCanvas;
-            return this.toLin(x / canvas.width, 20, this.audioContext.sampleRate / 2);
-        },
-
-        yToGain(y) {
-            if (!this.$refs.responseCanvas) return 0;
-            const canvas = this.$refs.responseCanvas;
-            return -((y - canvas.height / 2) * 30) / canvas.height;
-        },
-
         filterHasFrequency(type) {
             return type !== 'noop';
         },
@@ -610,18 +518,6 @@ export default {
             return "Hz";
         },
 
-        onResize() {
-            const canvas = this.$refs.responseCanvas;
-            const canvasBounds = canvas.getBoundingClientRect();
-
-            this.filters.forEach(filter => {
-                filter.x = this.frequencyToX(filter.frequency);
-                filter.y = this.gainToY(filter.gain);
-            });
-
-            this.drawFrequencyResponse();
-        },
-
         playAudio() {
             if (this.audioContext.state === 'suspended') {
                 this.audioContext.resume();
@@ -642,7 +538,6 @@ export default {
         },
 
         resetEQ() {
-            // Reset using the same initialization logic
             this.initializeFilterPositions();
 
             // Update WEQ8 runtime for each filter
@@ -652,7 +547,6 @@ export default {
                 this.weq8.toggleBypass(index, false);
             });
 
-            // Redraw the frequency response curve
             this.drawFrequencyResponse();
         }
         ,
@@ -664,11 +558,10 @@ export default {
             const setupCanvas = (canvas) => {
                 if (canvas) {
                     const rect = canvas.getBoundingClientRect();
-                    const dpr = window.devicePixelRatio || 1;
-                    canvas.width = rect.width * dpr;
-                    canvas.height = rect.height * dpr;
+                    canvas.width = rect.width * this.devicePixelRatio;
+                    canvas.height = rect.height * this.devicePixelRatio;
                     const ctx = canvas.getContext('2d');
-                    ctx.scale(dpr, dpr);
+                    ctx.scale(this.devicePixelRatio, this.devicePixelRatio);
                 }
             };
 
@@ -688,7 +581,10 @@ export default {
     computed: {
         nyquist() {
             return this.audioContext ? this.audioContext.sampleRate / 2 : 24000;
-        }
+        },
+        devicePixelRatio() {
+            return window.devicePixelRatio || 1;
+        },
     },
 
     beforeUnmount() {
