@@ -169,8 +169,12 @@ export default {
             if (this.disposed) return;
 
             const canvas = this.$refs.analyserCanvas;
-            const ctx = canvas.getContext('2d');
+            if (!canvas) return;
 
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+
+            // Get latest frequency data
             this.analyserNode.getByteFrequencyData(this.analysisData);
 
             const w = canvas.width;
@@ -185,18 +189,23 @@ export default {
 
             // Draw using pre-calculated x positions
             for (let i = 0; i < this.analysisData.length; i++) {
-                const y = Math.floor(h - this.analysisData[i] * yScale);
-                path.lineTo(this.analysisXs[i], y);
+                // Smoothing
+                const rawY = this.analysisData[i];
+                const smoothedY = Math.floor(h - rawY * yScale);
+                path.lineTo(this.analysisXs[i], smoothedY);
             }
 
             path.lineTo(w, h);
 
-            // Fill with semi-transparent color
+            // Fill 
             ctx.fillStyle = 'rgba(16, 185, 129, 0.7)';
             ctx.fill(path);
 
-            // Add stroke for definition
-            ctx.strokeStyle = 'rgb(236, 72, 153)';
+            // Stroke
+            ctx.shadowBlur = 2;
+            ctx.shadowColor = 'rgba(236, 72, 153, 0.5)';
+            ctx.strokeStyle = 'rgba(236, 72, 153, 0.8)';
+            ctx.lineWidth = 1;
             ctx.stroke(path);
 
             // Request next frame
@@ -216,7 +225,7 @@ export default {
             }
             return frequencies;
         },
-
+        // Frequency grid methods
         calculateGridLines() {
             const nyquist = this.audioContext.sampleRate / 2;
             const xLevelsOfScale = Math.floor(Math.log10(nyquist));
@@ -235,6 +244,34 @@ export default {
             return gridXs;
         },
 
+        drawGrid() {
+            const ctx = this.$refs.responseCanvas.getContext('2d');
+            const width = this.$refs.responseCanvas.width;
+            const height = this.$refs.responseCanvas.height;
+
+            ctx.strokeStyle = '#333333';
+            ctx.lineWidth = 1;
+
+            // Draw vertical frequency lines
+            const gridXs = this.calculateGridLines();
+            gridXs.forEach(x => {
+                const xPos = (x / 100) * width;
+                ctx.beginPath();
+                ctx.moveTo(xPos, 0);
+                ctx.lineTo(xPos, height);
+                ctx.stroke();
+            });
+
+            // Draw horizontal dB lines
+            [-12, -6, 0, 6, 12].forEach(db => {
+                const y = height - ((db + 15) / 30) * height;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(width, y);
+                ctx.stroke();
+            });
+        },
+        // Frequency Response methods
         drawFrequencyResponse() {
             const canvas = this.$refs.responseCanvas;
             const ctx = canvas.getContext('2d');
@@ -324,35 +361,7 @@ export default {
                 requestAnimationFrame(animate);
             });
         },
-
-        drawGrid() {
-            const ctx = this.$refs.responseCanvas.getContext('2d');
-            const width = this.$refs.responseCanvas.width;
-            const height = this.$refs.responseCanvas.height;
-
-            ctx.strokeStyle = '#333333';
-            ctx.lineWidth = 1;
-
-            // Draw vertical frequency lines
-            const gridXs = this.calculateGridLines();
-            gridXs.forEach(x => {
-                const xPos = (x / 100) * width;
-                ctx.beginPath();
-                ctx.moveTo(xPos, 0);
-                ctx.lineTo(xPos, height);
-                ctx.stroke();
-            });
-
-            // Draw horizontal dB lines
-            [-12, -6, 0, 6, 12].forEach(db => {
-                const y = height - ((db + 15) / 30) * height;
-                ctx.beginPath();
-                ctx.moveTo(0, y);
-                ctx.lineTo(width, y);
-                ctx.stroke();
-            });
-        },
-
+        // Filter methods
         getFilterPosition(filter) {
             if (!this.$refs.responseCanvas) return { transform: 'translate(0px, 0px)' };
 
@@ -448,7 +457,7 @@ export default {
             const canvas = this.$refs.responseCanvas;
             return -((y - canvas.height / 2) * 30) / canvas.height;
         },
-
+        // Filter handle methods
         startDragging(event, index) {
             event.preventDefault();
             event.stopPropagation();
@@ -572,12 +581,10 @@ export default {
 
     //placeholder methods
     savePreset() {
-        // Implement preset saving logic
         console.log('Save preset');
     },
 
     loadPreset() {
-        // Implement preset loading logic
         console.log('Load preset');
     },
 
