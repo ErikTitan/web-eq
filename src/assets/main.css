@@ -20,8 +20,6 @@ body {
 :root {
   --body-bg: var(--p-surface-0);
 
-  --gradient-start: var(--p-blue-300);
-  --gradient-end: var(--p-teal-300);
   --overlay: rgba(255, 255, 255, 0.2);
 
   /* HomeView.vue feature gradient */
@@ -40,8 +38,6 @@ body {
 :root[class='my-app-dark'] {
   --body-bg: var(--p-surface-950);
 
-  --gradient-start: var(--p-blue-400);
-  --gradient-end: var(--p-teal-500);
   --overlay: rgba(0, 0, 0, 0.2);
 
   /* HomeView.vue feature gradient */
