@@ -678,12 +678,26 @@ export default {
                         <template #content>
                             <div class="mb-3 border rounded-lg px-2" v-for="(filter, index) in filters" :key="index">
                                 <div>Band {{ index + 1 }}</div>
+
+                                <!-- Filter Type Selection -->
+                                <div class="flex items-center gap-2">
+                                    <label>Type:</label>
+                                    <select v-model="filter.type" @change="updateFilter(index, 'type', filter.type)">
+                                        <option v-for="type in filterTypes" :value="type.value" :key="type.value">
+                                            {{ type.label }}
+                                        </option>
+                                    </select>
+                                </div>
+
+                                <!-- Frequency Input -->
                                 <div class="flex items-center gap-2">
                                     <label>Frequency:</label>
                                     <input type="number" v-model.number="filter.frequency"
                                         @change="updateFilter(index, 'frequency', filter.frequency)" min="20"
                                         max="20000" />
                                 </div>
+
+                                <!-- Gain Slider -->
                                 <div class="flex items-center gap-2">
                                     <label>Gain:</label>
                                     <input type="range" v-model.number="filter.gain"
@@ -691,6 +705,8 @@ export default {
                                         step="0.1" />
                                     <span>{{ filter.gain.toFixed(1) }} dB</span>
                                 </div>
+
+                                <!-- Bypass Checkbox -->
                                 <div class="flex items-center gap-2">
                                     <label>Bypass:</label>
                                     <input type="checkbox" v-model="filter.bypass"
