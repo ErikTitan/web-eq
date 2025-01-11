@@ -7,6 +7,7 @@ import FloatLabel from 'primevue/floatlabel';
 import Select from 'primevue/select';
 import Checkbox from 'primevue/checkbox';
 
+import { useEqualizerStore } from '@/stores/equalizerStore'
 import { WEQ8Runtime } from 'weq8'
 
 export default {
@@ -21,7 +22,9 @@ export default {
         Slider,
     },
     data() {
+        const equalizerStore = useEqualizerStore()
         return {
+            equalizerStore,
             preset: {
                 name: 'Equalizer',
                 description: '',
@@ -32,12 +35,7 @@ export default {
             audioContext: null,
             source: null,
             weq8: null,
-            filters: [
-                { type: 'lowshelf12', frequency: 80, gain: 0, Q: 1, bypass: false },
-                { type: 'peaking12', frequency: 200, gain: 0, Q: 1, bypass: false },
-                { type: 'peaking12', frequency: 500, gain: 0, Q: 1, bypass: false },
-                { type: 'highshelf12', frequency: 1000, gain: 0, Q: 1, bypass: false },
-            ],
+            filters: equalizerStore.filters,
             filterTypes: [
                 { label: 'LP', value: 'lowpass12' },
                 { label: 'HP', value: 'highpass12' },
@@ -67,7 +65,11 @@ export default {
                 const audioPath = new URL('@/assets/audio/sample_audio.mp3', import.meta.url).href;
                 this.audio = new Audio(audioPath);
                 this.source = this.audioContext.createMediaElementSource(this.audio);
-                this.weq8 = new WEQ8Runtime(this.audioContext);
+                const savedState = this.equalizerStore.loadSavedState();
+                this.weq8 = new WEQ8Runtime(this.audioContext, savedState);
+                this.weq8.on("filtersChanged", (state) => {
+                    this.equalizerStore.updateWEQ8State(state);
+                });
                 this.initializeAnalyzer();
                 this.initializeFilterPositions();
                 resolve();
@@ -329,7 +331,7 @@ export default {
             });
         },
         // Filter methods
-        getFilterPosition(filter) {
+        getFilterPosition(filter, index) {
             if (!this.$refs.responseCanvas) return { transform: 'translate(0px, 0px)' };
 
             const canvas = this.$refs.responseCanvas;
@@ -344,6 +346,13 @@ export default {
             // Convert gain to y position (linear scale)
             const y = rect.height - ((filter.gain + 15) / 30) * rect.height;
 
+            // Only update position in store if it has changed
+            if (!filter.position || filter.position.x !== x || filter.position.y !== y) {
+                this.$nextTick(() => {
+                    this.equalizerStore.updateFilterPosition(index, { x, y });
+                });
+            }
+
             return {
                 transform: `translate(${x}px, ${y}px)`
             };
@@ -354,15 +363,15 @@ export default {
         },
 
         async updateFilter(index, property, value) {
+            // Existing updateFilter code remains the same
+            // The filtersChanged event will handle saving the state
             const filter = this.filters[index];
             const startValue = filter[property];
 
             if (property === 'frequency' || property === 'gain' || property === 'Q') {
-                // skip the transition animation for slider
                 if (property === 'gain') {
                     filter[property] = value;
                 } else {
-                    // smooth transition for other properties
                     const transitionedValue = await this.smoothTransition(startValue, value);
                     filter[property] = transitionedValue;
                 }
@@ -370,7 +379,6 @@ export default {
                 filter[property] = value;
             }
 
-            // Update WEQ8 runtime
             if (!this.weq8) return;
 
             switch (property) {
@@ -536,7 +544,6 @@ export default {
 
     async mounted() {
         await this.initializeAudio();
-
         const setupCanvas = (canvas) => {
             if (canvas) {
                 const rect = canvas.getBoundingClientRect();
@@ -586,8 +593,9 @@ export default {
     watch: {
         filters: {
             deep: true,
-            handler() {
+            handler(newFilters) {
                 this.drawFrequencyResponse();
+                this.equalizerStore.updateFilters(newFilters);
             }
         }
     }
@@ -643,7 +651,7 @@ export default {
                                             'bypassed': filter.bypass,
                                             'has-gain': filterHasGain(filter.type),
                                             'has-q': filterHasQ(filter.type)
-                                        }" :style="getFilterPosition(filter)"
+                                        }" :style="getFilterPosition(filter, index)"
                                         @pointerdown="startDragging($event, index)" @pointermove="handleDrag"
                                         @pointerup="stopDragging" @pointercancel="stopDragging"
                                         @wheel.prevent="handleFilterScroll($event, index)">
@@ -725,8 +733,6 @@ export default {
         </div>
     </div>
 </template>
-
-
 
 <style scoped>
 .filter-handle {
