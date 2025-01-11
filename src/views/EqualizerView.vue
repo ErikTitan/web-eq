@@ -666,46 +666,56 @@ export default {
                 <div class="col-span-12 lg:col-span-2">
                     <Card class="h-full">
                         <template #title>
-                            <div class="text-xl font-semibold mb-2">Band Controls</div>
+                            <div class="text-xl font-semibold mb-4">
+                                Band Controls
+                            </div>
                         </template>
                         <template #content>
-                            <div class="mb-3 border rounded-lg px-2" v-for="(filter, index) in filters" :key="index">
-                                <div class="font-semibold">Band {{ index + 1 }}</div>
+                            <div class="space-y-3">
+                                <div v-for="(filter, index) in filters" :key="index"
+                                    class="p-4 rounded-lg border border-gray-700 ">
+                                    <div class="font-semibold mb-4">
+                                        Band {{ index + 1 }}
+                                    </div>
 
-                                <!-- Filter Type Selection -->
-                                <div class="flex items-center gap-2 mb-2">
-                                    <FloatLabel variant="on">
-                                        <Select class="w-full" v-model="filter.type"
-                                            @change="updateFilter(index, 'type', $event.value)" :options="filterTypes"
-                                            optionLabel="label" optionValue="value" fluid />
-                                        <label>Type:</label>
-                                    </FloatLabel>
-                                </div>
+                                    <!-- Filter Type Selection -->
+                                    <div class="mb-4">
+                                        <FloatLabel variant="on" class="w-full">
+                                            <Select class="w-32 min-w-full" v-model="filter.type"
+                                                @change="updateFilter(index, 'type', $event.value)"
+                                                :options="filterTypes" optionLabel="label" optionValue="value" />
+                                            <label>Type:</label>
+                                        </FloatLabel>
+                                    </div>
 
-                                <!-- Frequency Input -->
-                                <div class="flex items-center gap-2">
-                                    <FloatLabel variant="on">
-                                        <InputNumber class="w-full" v-model="filter.frequency"
-                                            @update:modelValue="updateFilter(index, 'frequency', $event)" :min="20"
-                                            :max="20000" :step="1" mode="decimal" fluid />
-                                        <label for="in_label">Frequency:</label>
-                                    </FloatLabel>
-                                </div>
+                                    <!-- Frequency Input -->
+                                    <div class="mb-4">
+                                        <FloatLabel variant="on" class="w-full">
+                                            <InputNumber class="w-full" v-model="filter.frequency"
+                                                @update:modelValue="updateFilter(index, 'frequency', $event)" :min="20"
+                                                :max="20000" :step="1" mode="decimal" fluid />
+                                            <label>Frequency:</label>
+                                        </FloatLabel>
+                                    </div>
 
-                                <!-- Gain Slider -->
-                                <div class="flex items-center gap-2">
-                                    <label>Gain:</label>
-                                    <Slider class="w-full" v-model.number="filter.gain"
-                                        @update:modelValue="updateFilter(index, 'gain', $event)" :min="-15" :max="15"
-                                        :step="0.1" fluid />
-                                </div>
+                                    <!-- Gain Slider -->
+                                    <div class="mb-4">
+                                        <div class="flex items-center justify-between mb-2">
+                                            <label>Gain:</label>
+                                            <span class="text-sm text-gray-500">{{ filter.gain }}dB</span>
+                                        </div>
+                                        <Slider class="w-full" v-model="filter.gain"
+                                            @update:modelValue="updateFilter(index, 'gain', $event)" :min="-15"
+                                            :max="15" :step="0.1" fluid />
+                                    </div>
 
-                                <!-- Bypass Checkbox -->
-                                <div class="flex items-center gap-2">
-                                    <label>Bypass:</label>
-                                    <Checkbox v-model="filter.bypass"
-                                        @update:modelValue="updateFilter(index, 'bypass', $event)" :binary="true"
-                                        size="small" />
+                                    <!-- Bypass Checkbox -->
+                                    <div class="flex items-center gap-2">
+                                        <label>Bypass:</label>
+                                        <Checkbox v-model="filter.bypass"
+                                            @update:modelValue="updateFilter(index, 'bypass', $event)" :binary="true"
+                                            class="w-5 h-5" />
+                                    </div>
                                 </div>
                             </div>
                         </template>
