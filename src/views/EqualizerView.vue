@@ -3,11 +3,18 @@ import Card from 'primevue/card';
 import Button from 'primevue/button';
 import InputNumber from 'primevue/inputnumber';
 import Slider from 'primevue/slider';
+import FloatLabel from 'primevue/floatlabel';
+import Select from 'primevue/select';
+import Checkbox from 'primevue/checkbox';
+
 import { WEQ8Runtime } from 'weq8'
 
 export default {
     name: 'Equalizer',
     components: {
+        Checkbox,
+        Select,
+        FloatLabel,
         Card,
         Button,
         InputNumber,
@@ -29,7 +36,7 @@ export default {
                 { type: 'lowshelf12', frequency: 80, gain: 0, Q: 1, bypass: false },
                 { type: 'peaking12', frequency: 200, gain: 0, Q: 1, bypass: false },
                 { type: 'peaking12', frequency: 500, gain: 0, Q: 1, bypass: false },
-                { type: 'peaking12', frequency: 1000, gain: 0, Q: 1, bypass: false },
+                { type: 'highshelf12', frequency: 1000, gain: 0, Q: 1, bypass: false },
             ],
             filterTypes: [
                 { label: 'LP', value: 'lowpass12' },
@@ -409,25 +416,6 @@ export default {
             ].includes(type);
         },
 
-        incrementValue(index, property, amount) {
-            const filter = this.filters[index];
-            let newValue = filter[property] + amount;
-
-            // Clamp values based on property
-            switch (property) {
-                case 'frequency':
-                    newValue = Math.max(20, Math.min(20000, newValue));
-                    break;
-                case 'gain':
-                    newValue = Math.max(-15, Math.min(15, newValue));
-                    break;
-                case 'Q':
-                    newValue = Math.max(0.1, Math.min(18, newValue));
-                    break;
-            }
-
-            this.updateFilter(index, property, newValue);
-        },
         // Filter handle methods
         startDragging(event, index) {
             event.preventDefault();
@@ -685,43 +673,39 @@ export default {
                                 <div class="font-semibold">Band {{ index + 1 }}</div>
 
                                 <!-- Filter Type Selection -->
-                                <div class="flex items-center gap-2">
-                                    <label>Type:</label>
-                                    <select v-model="filter.type" @change="updateFilter(index, 'type', filter.type)">
-                                        <option v-for="type in filterTypes" :value="type.value" :key="type.value">
-                                            {{ type.label }}
-                                        </option>
-                                    </select>
+                                <div class="flex items-center gap-2 mb-2">
+                                    <FloatLabel variant="on">
+                                        <Select class="w-full" v-model="filter.type"
+                                            @change="updateFilter(index, 'type', $event.value)" :options="filterTypes"
+                                            optionLabel="label" optionValue="value" fluid />
+                                        <label>Type:</label>
+                                    </FloatLabel>
                                 </div>
 
                                 <!-- Frequency Input -->
                                 <div class="flex items-center gap-2">
-                                    <label>Frequency:</label>
-                                    <input type="number" v-model.number="filter.frequency"
-                                        @change="updateFilter(index, 'frequency', filter.frequency)" min="20"
-                                        max="20000" />
+                                    <FloatLabel variant="on">
+                                        <InputNumber class="w-full" v-model="filter.frequency"
+                                            @update:modelValue="updateFilter(index, 'frequency', $event)" :min="20"
+                                            :max="20000" :step="1" mode="decimal" fluid />
+                                        <label for="in_label">Frequency:</label>
+                                    </FloatLabel>
                                 </div>
 
                                 <!-- Gain Slider -->
                                 <div class="flex items-center gap-2">
-
                                     <label>Gain:</label>
-
-                                    <Slider class="w-56" v-model.number="filter.gain"
+                                    <Slider class="w-full" v-model.number="filter.gain"
                                         @update:modelValue="updateFilter(index, 'gain', $event)" :min="-15" :max="15"
-                                        :step="0.1" />
-                                    <!--
-                                    <input type="range"nyquist v-model.number="filter.gain"
-                                        @input="updateFilter(index, 'gain', filter.gain)" min="-15" max="15"
-                                        step="0.1" />
-                                    <span>{{ filter.gain.toFixed(1) }} dB</span>-->
+                                        :step="0.1" fluid />
                                 </div>
 
                                 <!-- Bypass Checkbox -->
                                 <div class="flex items-center gap-2">
                                     <label>Bypass:</label>
-                                    <input type="checkbox" v-model="filter.bypass"
-                                        @change="updateFilter(index, 'bypass', filter.bypass)" />
+                                    <Checkbox v-model="filter.bypass"
+                                        @update:modelValue="updateFilter(index, 'bypass', $event)" :binary="true"
+                                        size="small" />
                                 </div>
                             </div>
                         </template>
