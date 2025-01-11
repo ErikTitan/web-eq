@@ -47,24 +47,30 @@ export default {
             frequencies: null,
             analysisData: null,
             analysisXs: [],
+            devicePixelRatio: window.devicePixelRatio || 1,
+            nyquist: 24000,
         }
     },
     methods: {
         // Audio initialization and setup
         initializeAudio() {
-            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            const audioPath = new URL('@/assets/audio/sample_audio.mp3', import.meta.url).href;
-            this.audio = new Audio(audioPath);
-            this.source = this.audioContext.createMediaElementSource(this.audio);
-            this.weq8 = new WEQ8Runtime(this.audioContext);
-            this.initializeAnalyzer();
-            this.initializeFilterPositions();
+            return new Promise(resolve => {
+                this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                this.nyquist = this.audioContext.sampleRate / 2;
+                const audioPath = new URL('@/assets/audio/sample_audio.mp3', import.meta.url).href;
+                this.audio = new Audio(audioPath);
+                this.source = this.audioContext.createMediaElementSource(this.audio);
+                this.weq8 = new WEQ8Runtime(this.audioContext);
+                this.initializeAnalyzer();
+                this.initializeFilterPositions();
+                resolve();
+            });
         },
 
         initializeFilterPositions() {
-            this.$nextTick(() => {
+            return new Promise(resolve => {
                 const canvas = this.$refs.responseCanvas;
-                if (!canvas) return;
+                if (!canvas) return resolve();
 
                 // Initialize filters with logarithmically spaced frequencies
                 const minF = Math.log10(20);
@@ -83,6 +89,7 @@ export default {
                 });
 
                 this.drawFrequencyResponse();
+                resolve();
             });
         },
 
@@ -344,9 +351,14 @@ export default {
             const startValue = filter[property];
 
             if (property === 'frequency' || property === 'gain' || property === 'Q') {
-                // Smoothly transition the value
-                const transitionedValue = await this.smoothTransition(startValue, value);
-                filter[property] = transitionedValue;
+                // skip the transition animation for slider
+                if (property === 'gain') {
+                    filter[property] = value;
+                } else {
+                    // smooth transition for other properties
+                    const transitionedValue = await this.smoothTransition(startValue, value);
+                    filter[property] = transitionedValue;
+                }
             } else {
                 filter[property] = value;
             }
@@ -521,10 +533,9 @@ export default {
             console.log('Load preset');
         },
 
-        resetEQ() {
-            this.initializeFilterPositions();
+        async resetEQ() {
+            await this.initializeFilterPositions();
 
-            // Update WEQ8 runtime for each filter
             this.filters.forEach((filter, index) => {
                 this.weq8.setFilterFrequency(index, filter.frequency);
                 this.weq8.setFilterGain(index, 0);
@@ -532,43 +543,37 @@ export default {
             });
 
             this.drawFrequencyResponse();
-        }
-        ,
+        },
     },
 
-    mounted() {
-        this.initializeAudio();
-        this.$nextTick(() => {
-            const setupCanvas = (canvas) => {
-                if (canvas) {
-                    const rect = canvas.getBoundingClientRect();
-                    canvas.width = rect.width * this.devicePixelRatio;
-                    canvas.height = rect.height * this.devicePixelRatio;
-                    const ctx = canvas.getContext('2d');
-                    ctx.scale(this.devicePixelRatio, this.devicePixelRatio);
-                }
-            };
+    async mounted() {
+        await this.initializeAudio();
 
-            setupCanvas(this.$refs.analyserCanvas);
-            setupCanvas(this.$refs.responseCanvas);
-            setupCanvas(this.$refs.gridCanvas);
-
-            this.initializeFilterPositions();
-            this.drawFrequencyResponse();
-            if (this.$refs.analyserCanvas) {
-                this.updateAnalysisPositions();
-                this.drawAnalyzer();
+        const setupCanvas = (canvas) => {
+            if (canvas) {
+                const rect = canvas.getBoundingClientRect();
+                canvas.width = rect.width * this.devicePixelRatio;
+                canvas.height = rect.height * this.devicePixelRatio;
+                const ctx = canvas.getContext('2d');
+                ctx.scale(this.devicePixelRatio, this.devicePixelRatio);
             }
-        });
+        };
+
+        setupCanvas(this.$refs.analyserCanvas);
+        setupCanvas(this.$refs.responseCanvas);
+        setupCanvas(this.$refs.gridCanvas);
+
+        await this.initializeFilterPositions();
+        this.drawFrequencyResponse();
+
+        if (this.$refs.analyserCanvas) {
+            this.updateAnalysisPositions();
+            this.drawAnalyzer();
+        }
     },
 
     computed: {
-        nyquist() {
-            return this.audioContext ? this.audioContext.sampleRate / 2 : 24000;
-        },
-        devicePixelRatio() {
-            return window.devicePixelRatio || 1;
-        },
+
     },
 
     beforeUnmount() {
@@ -677,7 +682,7 @@ export default {
                         </template>
                         <template #content>
                             <div class="mb-3 border rounded-lg px-2" v-for="(filter, index) in filters" :key="index">
-                                <div>Band {{ index + 1 }}</div>
+                                <div class="font-semibold">Band {{ index + 1 }}</div>
 
                                 <!-- Filter Type Selection -->
                                 <div class="flex items-center gap-2">
@@ -699,11 +704,17 @@ export default {
 
                                 <!-- Gain Slider -->
                                 <div class="flex items-center gap-2">
+
                                     <label>Gain:</label>
-                                    <input type="range" v-model.number="filter.gain"
+
+                                    <Slider class="w-56" v-model.number="filter.gain"
+                                        @update:modelValue="updateFilter(index, 'gain', $event)" :min="-15" :max="15"
+                                        :step="0.1" />
+                                    <!--
+                                    <input type="range"nyquist v-model.number="filter.gain"
                                         @input="updateFilter(index, 'gain', filter.gain)" min="-15" max="15"
                                         step="0.1" />
-                                    <span>{{ filter.gain.toFixed(1) }} dB</span>
+                                    <span>{{ filter.gain.toFixed(1) }} dB</span>-->
                                 </div>
 
                                 <!-- Bypass Checkbox -->
