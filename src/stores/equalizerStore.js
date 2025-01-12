@@ -3,10 +3,17 @@ import { defineStore } from 'pinia'
 export const useEqualizerStore = defineStore('equalizer', {
   state: () => ({
     filters: [
-      { type: 'lowshelf12', frequency: 80, gain: 0, Q: 1, bypass: false },
-      { type: 'peaking12', frequency: 200, gain: 0, Q: 1, bypass: false },
-      { type: 'peaking12', frequency: 500, gain: 0, Q: 1, bypass: false },
-      { type: 'highshelf12', frequency: 1000, gain: 0, Q: 1, bypass: false },
+      { type: 'lowshelf12', frequency: 80, gain: 0, Q: 1, bypass: false, position: { x: 0, y: 0 } },
+      { type: 'peaking12', frequency: 200, gain: 0, Q: 1, bypass: false, position: { x: 0, y: 0 } },
+      { type: 'peaking12', frequency: 500, gain: 0, Q: 1, bypass: false, position: { x: 0, y: 0 } },
+      {
+        type: 'highshelf12',
+        frequency: 1000,
+        gain: 0,
+        Q: 1,
+        bypass: false,
+        position: { x: 0, y: 0 },
+      },
     ],
     weq8State: null,
   }),
@@ -20,22 +27,47 @@ export const useEqualizerStore = defineStore('equalizer', {
     },
 
     updateFilterPosition(index, position) {
+      if (!this.weq8State) {
+        this.weq8State = { filters: [], filterPositions: [] }
+      }
+
+      // Update the filter's position in the store
       this.filters[index].position = position
-      this.updateWEQ8State({
+
+      // Create updated positions array
+      const filterPositions = this.filters.map((f) => f.position)
+
+      // Update weq8State with new positions while preserving other state
+      const updatedState = {
         ...this.weq8State,
-        filterPositions: this.filters.map((f) => f.position),
-      })
+        filterPositions,
+      }
+
+      this.updateWEQ8State(updatedState)
     },
 
     updateWEQ8State(state) {
-      this.weq8State = state
-      localStorage.setItem('weq8State', JSON.stringify(state))
+      this.weq8State = {
+        filters: state.filters || [],
+        filterPositions: state.filterPositions || [],
+        ...state,
+      }
+      localStorage.setItem('weq8State', JSON.stringify(this.weq8State))
     },
 
     loadSavedState() {
       const savedState = localStorage.getItem('weq8State')
       if (savedState) {
-        this.weq8State = JSON.parse(savedState)
+        const state = JSON.parse(savedState)
+        this.weq8State = state
+
+        // Update filters with saved positions
+        if (state.filterPositions) {
+          this.filters = this.filters.map((filter, index) => ({
+            ...filter,
+            position: state.filterPositions[index] || { x: 0, y: 0 },
+          }))
+        }
       }
       return this.weq8State
     },

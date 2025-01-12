@@ -58,48 +58,93 @@ export default {
     },
     methods: {
         // Audio initialization and setup
-        initializeAudio() {
-            return new Promise(resolve => {
-                this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                this.nyquist = this.audioContext.sampleRate / 2;
-                const audioPath = new URL('@/assets/audio/sample_audio.mp3', import.meta.url).href;
-                this.audio = new Audio(audioPath);
-                this.source = this.audioContext.createMediaElementSource(this.audio);
-                const savedState = this.equalizerStore.loadSavedState();
-                this.weq8 = new WEQ8Runtime(this.audioContext, savedState);
-                this.weq8.on("filtersChanged", (state) => {
-                    this.equalizerStore.updateWEQ8State(state);
-                });
-                this.initializeAnalyzer();
-                this.initializeFilterPositions();
-                resolve();
+        async initializeAudio() {
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            this.nyquist = this.audioContext.sampleRate / 2;
+            const audioPath = new URL('@/assets/audio/sample_audio.mp3', import.meta.url).href;
+            this.audio = new Audio(audioPath);
+            this.source = this.audioContext.createMediaElementSource(this.audio);
+
+            const savedState = this.equalizerStore.loadSavedState();
+            this.weq8 = new WEQ8Runtime(this.audioContext, savedState);
+
+            // Update local filters from saved state
+            if (savedState?.filters) {
+                this.filters = this.filters.map((filter, index) => ({
+                    ...filter,
+                    ...savedState.filters[index]
+                }))
+            }
+
+            this.weq8.on("filtersChanged", (state) => {
+                // Make sure the state includes both filters and their positions
+                const stateWithPositions = {
+                    ...state,
+                    filterPositions: this.filters.map(filter => filter.position)
+                };
+                this.equalizerStore.updateWEQ8State(stateWithPositions);
             });
+
+            this.initializeAnalyzer();
+            await this.initializeFilterPositions();
         },
 
-        initializeFilterPositions() {
-            return new Promise(resolve => {
-                const canvas = this.$refs.responseCanvas;
-                if (!canvas) return resolve();
+        async initializeFilterPositions() {
+            const canvas = this.$refs.responseCanvas;
+            if (!canvas) return;
 
-                // Initialize filters with logarithmically spaced frequencies
-                const minF = Math.log10(20);
-                const maxF = Math.log10(this.nyquist);
+            const savedState = this.equalizerStore.weq8State;
+            const rect = canvas.getBoundingClientRect();
+            const minF = Math.log10(20);
+            const maxF = Math.log10(this.nyquist);
+
+            if (!savedState || !savedState.filters || !savedState.filterPositions) {
+                // Initialize with logarithmically spaced frequencies
                 const step = (maxF - minF) / (this.filters.length - 1);
 
                 this.filters = this.filters.map((filter, index) => {
                     const frequency = Math.pow(10, minF + step * index);
+                    const logPos = (Math.log10(frequency) - minF) / (maxF - minF);
+                    const x = logPos * rect.width;
+                    const y = rect.height - ((filter.gain + 15) / 30) * rect.height;
+
                     return {
                         ...filter,
                         frequency,
                         gain: 0,
                         Q: filter.Q || 1,
-                        bypass: false
+                        bypass: false,
+                        position: { x, y }
                     };
                 });
 
-                this.drawFrequencyResponse();
-                resolve();
-            });
+                // Save initial positions
+                this.filters.forEach((filter, index) => {
+                    this.equalizerStore.updateFilterPosition(index, filter.position);
+                });
+            } else {
+                // Restore from saved state including positions
+                this.filters = this.filters.map((filter, index) => {
+                    const savedFilter = savedState.filters[index] || {};
+                    const savedPosition = savedState.filterPositions[index];
+
+                    // If we don't have a saved position, calculate it
+                    if (!savedPosition) {
+                        const logPos = (Math.log10(savedFilter.frequency || filter.frequency) - minF) / (maxF - minF);
+                        const x = logPos * rect.width;
+                        const y = rect.height - (((savedFilter.gain || filter.gain) + 15) / 30) * rect.height;
+                        savedState.filterPositions[index] = { x, y };
+                    }
+
+                    return {
+                        ...filter,
+                        ...savedFilter,
+                        position: savedPosition || savedState.filterPositions[index]
+                    };
+                });
+            }
+
+            this.drawFrequencyResponse();
         },
 
         initializeAnalyzer() {
@@ -334,24 +379,35 @@ export default {
         getFilterPosition(filter, index) {
             if (!this.$refs.responseCanvas) return { transform: 'translate(0px, 0px)' };
 
+            // First check if we have a saved position from state
+            const savedPosition = this.equalizerStore.weq8State?.filterPositions?.[index];
+            if (savedPosition) {
+                return {
+                    transform: `translate(${savedPosition.x}px, ${savedPosition.y}px)`
+                };
+            }
+
+            // If dragging, use current position
+            if (this.isDragging && this.selectedPoint === index && filter.position) {
+                return {
+                    transform: `translate(${filter.position.x}px, ${filter.position.y}px)`
+                };
+            }
+
+            // Calculate position from frequency and gain
             const canvas = this.$refs.responseCanvas;
             const rect = canvas.getBoundingClientRect();
-
-            // Convert frequency to x position (logarithmic scale)
             const minF = Math.log10(20);
             const maxF = Math.log10(this.nyquist);
             const logPos = (Math.log10(filter.frequency) - minF) / (maxF - minF);
             const x = logPos * rect.width;
-
-            // Convert gain to y position (linear scale)
             const y = rect.height - ((filter.gain + 15) / 30) * rect.height;
 
-            // Only update position in store if it has changed
-            if (!filter.position || filter.position.x !== x || filter.position.y !== y) {
-                this.$nextTick(() => {
-                    this.equalizerStore.updateFilterPosition(index, { x, y });
-                });
-            }
+            // Store the calculated position
+            const position = { x, y };
+            this.$nextTick(() => {
+                this.equalizerStore.updateFilterPosition(index, position);
+            });
 
             return {
                 transform: `translate(${x}px, ${y}px)`
@@ -363,8 +419,6 @@ export default {
         },
 
         async updateFilter(index, property, value) {
-            // Existing updateFilter code remains the same
-            // The filtersChanged event will handle saving the state
             const filter = this.filters[index];
             const startValue = filter[property];
 
@@ -375,12 +429,24 @@ export default {
                     const transitionedValue = await this.smoothTransition(startValue, value);
                     filter[property] = transitionedValue;
                 }
+
+                // Recalculate and update position when frequency or gain changes
+                const canvas = this.$refs.responseCanvas;
+                const rect = canvas.getBoundingClientRect();
+                const minF = Math.log10(20);
+                const maxF = Math.log10(this.nyquist);
+                const logPos = (Math.log10(filter.frequency) - minF) / (maxF - minF);
+                const x = logPos * rect.width;
+                const y = rect.height - ((filter.gain + 15) / 30) * rect.height;
+
+                this.equalizerStore.updateFilterPosition(index, { x, y });
             } else {
                 filter[property] = value;
             }
 
             if (!this.weq8) return;
 
+            // Update WEQ8 runtime
             switch (property) {
                 case 'type':
                     this.weq8.setFilterType(index, value);
@@ -453,8 +519,14 @@ export default {
             const rect = canvas.getBoundingClientRect();
 
             // Get mouse position relative to canvas
-            const x = event.clientX - rect.left;
-            const y = event.clientY - rect.top;
+            const x = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
+            const y = Math.max(0, Math.min(rect.height, event.clientY - rect.top));
+
+            // Update the position immediately in the local filter
+            this.filters[this.selectedPoint].position = { x, y };
+
+            // Update position in store
+            this.equalizerStore.updateFilterPosition(this.selectedPoint, { x, y });
 
             // Convert x position to frequency (logarithmic)
             const width = rect.width;
