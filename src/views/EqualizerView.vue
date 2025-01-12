@@ -68,8 +68,7 @@ export default {
                 this.weq8 = new WEQ8Runtime(this.audioContext);
 
                 // Set up the state listener
-                const equalizerStore = useEqualizerStore();
-                equalizerStore.setupStateListener(this.weq8);
+                this.equalizerStore.setupStateListener(this.weq8);
 
                 this.initializeAnalyzer();
                 this.initializeFilterPositions();
@@ -401,9 +400,8 @@ export default {
                     break;
             }
 
-            // After updating WEQ8, let's manually save the current filters state
-            const equalizerStore = useEqualizerStore();
-            equalizerStore.savedState = {
+            // After updating WEQ8 manually save the current filters state
+            this.equalizerStore.savedState = {
                 filters: this.filters.map(f => ({ ...f }))
             };
 
@@ -527,15 +525,13 @@ export default {
         //placeholder methods
         savePreset() {
             // Manually update the store with current filters before saving
-            const equalizerStore = useEqualizerStore();
-            equalizerStore.updateState(this.filters);
-            equalizerStore.saveState();
+            this.equalizerStore.updateState(this.filters);
+            this.equalizerStore.saveState();
         },
 
         async loadPreset() {
             try {
-                const equalizerStore = useEqualizerStore();
-                const savedState = equalizerStore.loadState();
+                const savedState = this.equalizerStore.loadState();
 
                 if (savedState && savedState.filters) {
                     // Disconnect old WEQ8 instance
@@ -568,7 +564,7 @@ export default {
                     this.weq8.connect(this.analyserNode);
 
                     // Set up state listener for new instance
-                    equalizerStore.setupStateListener(this.weq8);
+                    this.equalizerStore.setupStateListener(this.weq8);
 
                     // Now safe to draw
                     await this.$nextTick();
@@ -757,9 +753,9 @@ export default {
                                     <!-- Filter Type Selection -->
                                     <div class="mb-4">
                                         <FloatLabel variant="on" class="w-full">
-                                            <Select class="w-32 min-w-full" v-model="filter.type"
+                                            <Select class=" min-w-full" v-model="filter.type"
                                                 @change="updateFilter(index, 'type', $event.value)"
-                                                :options="filterTypes" optionLabel="label" optionValue="value" />
+                                                :options="filterTypes" optionLabel="label" optionValue="value" fluid />
                                             <label>Type:</label>
                                         </FloatLabel>
                                     </div>
