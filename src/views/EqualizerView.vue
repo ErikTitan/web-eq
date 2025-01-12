@@ -591,10 +591,19 @@ export default {
         async resetEQ() {
             await this.initializeFilterPositions();
 
+            const defaultFilters = this.equalizerStore.getDefaultFilters();
+
             this.filters.forEach((filter, index) => {
+                // Reset to default filter type and values
+                this.weq8.setFilterType(index, defaultFilters[index].type);
                 this.weq8.setFilterFrequency(index, filter.frequency);
                 this.weq8.setFilterGain(index, 0);
                 this.weq8.toggleBypass(index, false);
+
+                // Update the filter object
+                filter.type = defaultFilters[index].type;
+                filter.gain = 0;
+                filter.bypass = false;
             });
 
             this.drawFrequencyResponse();
