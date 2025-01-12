@@ -69,7 +69,7 @@ export default {
         'lg:top-3': isScrolled,
         'top-0': !isScrolled
     }">
-        <Menubar :model="items" class="transition-all duration-400 ease-in-out mx-auto overflow-hidden" :class="{
+        <Menubar :model="items" class="transition-all duration-400 ease-in-out mx-auto" :class="{
             'container rounded-lg': isScrolled,
             'w-full max-w-full rounded-none border-none': !isScrolled
         }">

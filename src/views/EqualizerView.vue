@@ -7,12 +7,15 @@ import FloatLabel from 'primevue/floatlabel';
 import Select from 'primevue/select';
 import Checkbox from 'primevue/checkbox';
 
+import Toast from 'primevue/toast';
+
 import { WEQ8Runtime } from 'weq8'
 import { useEqualizerStore } from '@/stores/equalizerStore';
 
 export default {
     name: 'Equalizer',
     components: {
+        Toast,
         Checkbox,
         Select,
         FloatLabel,
@@ -595,6 +598,7 @@ export default {
                 this.weq8.setFilterFrequency(index, filter.frequency);
                 this.weq8.setFilterGain(index, 0);
                 this.weq8.toggleBypass(index, false);
+                this.updateFilter(index, 'Q', 1);
 
                 // Update the filter object
                 filter.type = defaultFilters[index].type;
@@ -603,6 +607,12 @@ export default {
             });
 
             this.drawFrequencyResponse();
+        },
+        showSave() {
+            this.$toast.add({ severity: 'success', summary: 'Preset Saved', detail: 'Preset was saved successfully', life: 3000 });
+        },
+        showLoad() {
+            this.$toast.add({ severity: 'info', summary: 'Preset Loaded', detail: 'Preset was loaded successfully', life: 3000 });
         },
     },
 
@@ -678,9 +688,11 @@ export default {
                             <div class="text-xl font-semibold mb-2">Controls</div>
                         </template>
                         <template #content>
+                            <Toast />
                             <div class="flex flex-col gap-2">
-                                <Button label="Save" severity="primary" rounded @click="savePreset" />
-                                <Button label="Load" outlined rounded @click="loadPreset" />
+                                <Button label="Save" severity="primary" rounded
+                                    @click="() => { savePreset(); showSave(); }" />
+                                <Button label="Load" outlined rounded @click="() => { loadPreset(); showLoad(); }" />
                                 <Button label="Reset" severity="secondary" outlined rounded @click="resetEQ" />
                             </div>
                         </template>
@@ -709,8 +721,9 @@ export default {
                                         @pointerleave="stopDragging"></canvas>
 
                                     <!-- Filter Handles -->
-                                    <div v-for="(filter, index) in filters" :key="index"
-                                        class="filter-handle absolute z-40" :class="{
+                                    <div v-for="(filter, index) in filters" :key="index" class="filter-handle absolute z-40 -translate-x-1/2 -translate-y-1/2 w-6 h-6 
+                                        bg-indigo-600/80 border-2 border-white-800 border-2 rounded-full cursor-grab select-none 
+                                        backdrop-blur shadow-lg flex items-center justify-center" :class="{
                                             'selected': selectedPoint === index,
                                             'bypassed': filter.bypass,
                                             'has-gain': filterHasGain(filter.type),
@@ -719,8 +732,8 @@ export default {
                                         @pointerdown="startDragging($event, index)" @pointermove="handleDrag"
                                         @pointerup="stopDragging" @pointercancel="stopDragging"
                                         @wheel.prevent="handleFilterScroll($event, index)">
-                                        <span class="filter-number">{{ index + 1 }}</span>
-                                        <span class="filter-freq">{{ getFilterLabel(filter) }}</span>
+                                        <span class="filter-number text-white">{{ index + 1 }}</span>
+                                        <span class="filter-freq absolute">{{ getFilterLabel(filter) }}</span>
                                         <span v-if="filterHasQ(filter.type)" class="filter-q">Q: {{ filter.Q.toFixed(1)
                                             }}</span>
                                     </div>
@@ -802,31 +815,7 @@ export default {
 
 <style scoped>
 .filter-handle {
-    position: absolute;
-    width: 24px;
-    height: 24px;
     margin: -12px 0 0 -12px;
-    background: rgba(79, 70, 229, 0.8);
-    border: 2px solid rgba(255, 255, 255, 0.8);
-    border-radius: 50%;
-    cursor: grab;
-    z-index: 40;
-    user-select: none;
-    will-change: transform;
-    touch-action: none;
-    backdrop-filter: blur(4px);
-    box-shadow:
-        inset 0 2px 4px rgba(255, 255, 255, 0.3),
-        0 4px 8px rgba(0, 0, 0, 0.2);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.filter-handle .filter-number {
-    color: white;
-    font-size: 14px;
-    font-weight: 500;
 }
 
 .filter-handle.selected {
@@ -869,7 +858,6 @@ export default {
 }
 
 .filter-freq {
-    position: absolute;
     top: -24px;
     left: 50%;
     transform: translateX(-50%);
