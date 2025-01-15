@@ -163,7 +163,7 @@ export default {
                     </Card>
 
                     <!-- Stats Card -->
-                    <Card class="border backdrop-blur-lg shadow-xl">
+                    <Card class="bg-glass backdrop-blur-lg shadow-xl">
                         <template #title>
                             <h3 class="text-2xl font-bold" :class="isDarkMode ? 'text-white' : 'text-gray-800'">
                                 WEB-EQ Community
