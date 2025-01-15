@@ -530,6 +530,7 @@ export default {
             // Manually update the store with current filters before saving
             this.equalizerStore.updateState(this.filters);
             this.equalizerStore.saveState();
+            this.showSave()
         },
 
         async loadPreset() {
@@ -570,8 +571,9 @@ export default {
                     this.equalizerStore.setupStateListener(this.weq8);
 
                     // Now safe to draw
-                    await this.$nextTick();
+                    await Promise.resolve();
                     this.drawFrequencyResponse();
+                    this.showLoad();
                 }
             } catch (error) {
                 console.error('Error loading preset:', error);
@@ -607,12 +609,19 @@ export default {
             });
 
             this.drawFrequencyResponse();
+            this.showReset();
         },
+
         showSave() {
             this.$toast.add({ severity: 'success', summary: 'Preset Saved', detail: 'Preset was saved successfully', life: 3000 });
         },
+
         showLoad() {
             this.$toast.add({ severity: 'info', summary: 'Preset Loaded', detail: 'Preset was loaded successfully', life: 3000 });
+        },
+
+        showReset() {
+            this.$toast.add({ severity: 'secondary', summary: 'Reset Complete', detail: 'EQ settings have been reset to default', life: 3000 });
         },
     },
 
@@ -690,9 +699,8 @@ export default {
                         <template #content>
                             <Toast />
                             <div class="flex flex-col gap-2">
-                                <Button label="Save" severity="primary" rounded
-                                    @click="() => { savePreset(); showSave(); }" />
-                                <Button label="Load" outlined rounded @click="() => { loadPreset(); showLoad(); }" />
+                                <Button label="Save" severity="primary" rounded @click="savePreset" />
+                                <Button label="Load" outlined rounded @click="loadPreset" />
                                 <Button label="Reset" severity="secondary" outlined rounded @click="resetEQ" />
                             </div>
                         </template>
