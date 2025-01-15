@@ -64,7 +64,7 @@ export default {
                 <div class="space-y-8">
                     <Card class="bg-glass backdrop-blur-lg shadow-xl">
                         <template #title>
-                            <h2 class="text-3xl font-bold mb-4" :class="isDarkMode ? 'text-white' : 'text-gray-800'">
+                            <h2 class="text-3xl font-bold mb-4">
                                 Contact WEB-EQ Support
                             </h2>
                         </template>
@@ -132,7 +132,7 @@ export default {
                     <!-- Support Categories -->
                     <Card class="bg-glass backdrop-blur-lg shadow-xl">
                         <template #title>
-                            <h2 class="text-3xl font-bold mb-4" :class="isDarkMode ? 'text-white' : 'text-gray-800'">
+                            <h2 class="text-3xl font-bold mb-4">
                                 Support Categories
                             </h2>
                         </template>
@@ -163,7 +163,7 @@ export default {
                     </Card>
 
                     <!-- Stats Card -->
-                    <Card class="border border-slate-100/25 backdrop-blur-lg shadow-xl">
+                    <Card class="border backdrop-blur-lg shadow-xl">
                         <template #title>
                             <h3 class="text-2xl font-bold" :class="isDarkMode ? 'text-white' : 'text-gray-800'">
                                 WEB-EQ Community
