@@ -62,22 +62,23 @@ export default {
     methods: {
         // Audio initialization and setup
         async initializeAudio() {
-        return new Promise(resolve => {
-            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            this.nyquist = this.audioContext.sampleRate / 2;
-            const audioPath = new URL('@/assets/audio/sample_audio.mp3', import.meta.url).href;
-            this.audio = new Audio(audioPath);
-            this.source = this.audioContext.createMediaElementSource(this.audio);
-            this.weq8 = new WEQ8Runtime(this.audioContext);
+            return new Promise(resolve => {
+                this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                this.nyquist = this.audioContext.sampleRate / 2;
+                const audioPath = new URL('@/assets/audio/sample_audio.mp3', import.meta.url).href;
+                this.audio = new Audio(audioPath);
+                this.source = this.audioContext.createMediaElementSource(this.audio);
+                this.weq8 = new WEQ8Runtime(this.audioContext);
 
-            // Set up the state listener
-            this.equalizerStore.setupStateListener(this.weq8);
+                // Set up the state listener
+                this.equalizerStore.setupStateListener(this.weq8);
 
-            this.setupCanvases();
-            this.initializeFilterPositions();
-            resolve();
-        });
-    },
+                this.setupCanvases();
+                this.initializeAnalyzer();
+                this.initializeFilterPositions();
+                resolve();
+            });
+        },
 
         initializeFilterPositions() {
             return new Promise(resolve => {
@@ -150,44 +151,44 @@ export default {
             });
         },
         setupCanvases() {
-        const setupCanvas = (canvas) => {
-            if (!canvas) return;
-            
-            // Get the display size of the canvas
-            const displayWidth = canvas.clientWidth;
-            const displayHeight = canvas.clientHeight;
-            
-            // Set the canvas size accounting for pixel ratio
-            canvas.width = displayWidth * this.devicePixelRatio;
-            canvas.height = displayHeight * this.devicePixelRatio;
-            
-            // Scale the canvas context
-            const ctx = canvas.getContext('2d');
-            ctx.scale(this.devicePixelRatio, this.devicePixelRatio);
-            
-            // Set CSS size explicitly
-            canvas.style.width = `${displayWidth}px`;
-            canvas.style.height = `${displayHeight}px`;
-        };
+            const setupCanvas = (canvas) => {
+                if (!canvas) return;
 
-        setupCanvas(this.$refs.analyserCanvas);
-        setupCanvas(this.$refs.responseCanvas);
-        setupCanvas(this.$refs.gridCanvas);
+                // Get the display size of the canvas
+                const displayWidth = canvas.clientWidth;
+                const displayHeight = canvas.clientHeight;
 
-        // Add resize observer for dynamic resizing
-        const resizeObserver = new ResizeObserver(() => {
+                // Set the canvas size accounting for pixel ratio
+                canvas.width = displayWidth * this.devicePixelRatio;
+                canvas.height = displayHeight * this.devicePixelRatio;
+
+                // Scale the canvas context
+                const ctx = canvas.getContext('2d');
+                ctx.scale(this.devicePixelRatio, this.devicePixelRatio);
+
+                // Set CSS size explicitly
+                canvas.style.width = `${displayWidth}px`;
+                canvas.style.height = `${displayHeight}px`;
+            };
+
             setupCanvas(this.$refs.analyserCanvas);
             setupCanvas(this.$refs.responseCanvas);
             setupCanvas(this.$refs.gridCanvas);
-            this.drawFrequencyResponse();
-            this.updateAnalysisPositions();
-        });
 
-        [this.$refs.analyserCanvas, this.$refs.responseCanvas, this.$refs.gridCanvas].forEach(canvas => {
-            if (canvas) resizeObserver.observe(canvas);
-        });
+            // Add resize observer for dynamic resizing
+            const resizeObserver = new ResizeObserver(() => {
+                setupCanvas(this.$refs.analyserCanvas);
+                setupCanvas(this.$refs.responseCanvas);
+                setupCanvas(this.$refs.gridCanvas);
+                this.drawFrequencyResponse();
+                this.updateAnalysisPositions();
+            });
 
-        this.resizeObserver = resizeObserver;
+            [this.$refs.analyserCanvas, this.$refs.responseCanvas, this.$refs.gridCanvas].forEach(canvas => {
+                if (canvas) resizeObserver.observe(canvas);
+            });
+
+            this.resizeObserver = resizeObserver;
         },
 
         drawAnalyzer() {
@@ -285,66 +286,66 @@ export default {
         },
         // Frequency Response methods
         drawFrequencyResponse() {
-        if (!this.weq8 || !this.filters || !this.filters.length) return;
+            if (!this.weq8 || !this.filters || !this.filters.length) return;
 
-        const canvas = this.$refs.responseCanvas;
-        const ctx = canvas.getContext('2d');
-        const displayWidth = canvas.clientWidth;
-        const displayHeight = canvas.clientHeight;
+            const canvas = this.$refs.responseCanvas;
+            const ctx = canvas.getContext('2d');
+            const displayWidth = canvas.clientWidth;
+            const displayHeight = canvas.clientHeight;
 
-        // Clear canvas and draw grid
-        ctx.clearRect(0, 0, displayWidth, displayHeight);
-        this.drawGrid();
+            // Clear canvas and draw grid
+            ctx.clearRect(0, 0, displayWidth, displayHeight);
+            this.drawGrid();
 
-        // Calculate frequency response
-        const frequencies = new Float32Array(displayWidth);
-        const magResponse = new Float32Array(displayWidth);
-        const phaseResponse = new Float32Array(displayWidth);
+            // Calculate frequency response
+            const frequencies = new Float32Array(displayWidth);
+            const magResponse = new Float32Array(displayWidth);
+            const phaseResponse = new Float32Array(displayWidth);
 
-        // Generate logarithmically spaced frequencies
-        for (let i = 0; i < frequencies.length; i++) {
-            const logScale = i / displayWidth;
-            frequencies[i] = Math.pow(10, Math.log10(20) + logScale * (Math.log10(this.nyquist) - Math.log10(20)));
-        }
+            // Generate logarithmically spaced frequencies
+            for (let i = 0; i < frequencies.length; i++) {
+                const logScale = i / displayWidth;
+                frequencies[i] = Math.pow(10, Math.log10(20) + logScale * (Math.log10(this.nyquist) - Math.log10(20)));
+            }
 
-        // Calculate combined response
-        let combinedResponse = new Float32Array(frequencies.length).fill(1);
+            // Calculate combined response
+            let combinedResponse = new Float32Array(frequencies.length).fill(1);
 
-        this.filters.forEach((filter, index) => {
-            if (!filter.bypass && filter.type !== 'noop') {
-                this.weq8.getFrequencyResponse(
-                    index,
-                    0,
-                    frequencies,
-                    magResponse,
-                    phaseResponse
-                );
+            this.filters.forEach((filter, index) => {
+                if (!filter.bypass && filter.type !== 'noop') {
+                    this.weq8.getFrequencyResponse(
+                        index,
+                        0,
+                        frequencies,
+                        magResponse,
+                        phaseResponse
+                    );
 
-                for (let i = 0; i < frequencies.length; i++) {
-                    combinedResponse[i] *= magResponse[i];
+                    for (let i = 0; i < frequencies.length; i++) {
+                        combinedResponse[i] *= magResponse[i];
+                    }
+                }
+            });
+
+            // Draw response curve
+            ctx.beginPath();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+
+            for (let i = 0; i < frequencies.length; i++) {
+                const gain = combinedResponse[i];
+                const db = 20 * Math.log10(gain);
+                const x = (i / frequencies.length) * displayWidth;
+                const y = displayHeight - ((db + 15) / 30) * displayHeight;
+
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
                 }
             }
-        });
 
-        // Draw response curve
-        ctx.beginPath();
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2;
-
-        for (let i = 0; i < frequencies.length; i++) {
-            const gain = combinedResponse[i];
-            const db = 20 * Math.log10(gain);
-            const x = (i / frequencies.length) * displayWidth;
-            const y = displayHeight - ((db + 15) / 30) * displayHeight;
-
-            if (i === 0) {
-                ctx.moveTo(x, y);
-            } else {
-                ctx.lineTo(x, y);
-            }
-        }
-
-        ctx.stroke();
+            ctx.stroke();
         },
 
         smoothTransition(startValue, endValue, duration = 50) {
@@ -376,26 +377,26 @@ export default {
         },
         // Filter methods
         getFilterPosition(filter) {
-        if (!this.$refs.responseCanvas) return { transform: 'translate(0px, 0px)' };
+            if (!this.$refs.responseCanvas) return { transform: 'translate(0px, 0px)' };
 
-        const canvas = this.$refs.responseCanvas;
-        const rect = canvas.getBoundingClientRect();
-        const displayWidth = rect.width;
-        const displayHeight = rect.height;
+            const canvas = this.$refs.responseCanvas;
+            const rect = canvas.getBoundingClientRect();
+            const displayWidth = rect.width;
+            const displayHeight = rect.height;
 
-        // Convert frequency to x position (logarithmic scale)
-        const minF = Math.log10(20);
-        const maxF = Math.log10(this.nyquist);
-        const logPos = (Math.log10(filter.frequency) - minF) / (maxF - minF);
-        const x = logPos * displayWidth;
+            // Convert frequency to x position (logarithmic scale)
+            const minF = Math.log10(20);
+            const maxF = Math.log10(this.nyquist);
+            const logPos = (Math.log10(filter.frequency) - minF) / (maxF - minF);
+            const x = logPos * displayWidth;
 
-        // Convert gain to y position (linear scale)
-        const y = displayHeight - ((filter.gain + 15) / 30) * displayHeight;
+            // Convert gain to y position (linear scale)
+            const y = displayHeight - ((filter.gain + 15) / 30) * displayHeight;
 
-        return {
-            transform: `translate(${x}px, ${y}px)`
-        };
-    },
+            return {
+                transform: `translate(${x}px, ${y}px)`
+            };
+        },
 
 
         getFilterLabel(filter) {
