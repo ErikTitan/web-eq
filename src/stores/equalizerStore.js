@@ -21,10 +21,26 @@ export const useEqualizerStore = defineStore('equalizer', {
       })
     },
 
-    saveState() {
+    updateState(filters) {
+      // Save complete filter state including all properties
+      const completeState = {
+        filters: filters.map((filter) => ({
+          type: filter.type,
+          frequency: filter.frequency,
+          gain: filter.gain,
+          Q: filter.Q,
+          bypass: filter.bypass,
+        })),
+      }
+
+      this.savedState = completeState
+      this.saveToLocalStorage()
+    },
+
+    saveToLocalStorage() {
       try {
         if (this.savedState) {
-          console.log('Saving state:', this.savedState)
+          console.log('Saving complete state:', this.savedState)
           localStorage.setItem('equalizerState', JSON.stringify(this.savedState))
           return true
         }
@@ -35,13 +51,17 @@ export const useEqualizerStore = defineStore('equalizer', {
       }
     },
 
-    loadState() {
+    loadFromLocalStorage() {
       try {
         const savedState = localStorage.getItem('equalizerState')
         if (savedState) {
-          this.savedState = JSON.parse(savedState)
-          console.log('Loaded state:', this.savedState)
-          return this.savedState
+          const parsedState = JSON.parse(savedState)
+          // Validate that we have all required properties
+          if (parsedState.filters && parsedState.filters.length > 0) {
+            this.savedState = parsedState
+            console.log('Loaded complete state:', this.savedState)
+            return this.savedState
+          }
         }
         return null
       } catch (error) {
@@ -52,12 +72,6 @@ export const useEqualizerStore = defineStore('equalizer', {
 
     getDefaultFilters() {
       return [...this.defaultFilters]
-    },
-
-    updateState(filters) {
-      this.savedState = {
-        filters: filters.map((f) => ({ ...f })),
-      }
     },
   },
 })

@@ -62,7 +62,7 @@ export default {
     methods: {
         // Audio initialization and setup
         async initializeAudio() {
-            return new Promise(resolve => {
+            return new Promise(async (resolve) => {
                 this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 this.nyquist = this.audioContext.sampleRate / 2;
                 const audioPath = new URL('@/assets/audio/sample_audio.mp3', import.meta.url).href;
@@ -70,36 +70,84 @@ export default {
                 this.source = this.audioContext.createMediaElementSource(this.audio);
                 this.weq8 = new WEQ8Runtime(this.audioContext);
 
-                // Set up the state listener
-                this.equalizerStore.setupStateListener(this.weq8);
+                // Try to load saved state
+                const savedState = this.equalizerStore.loadFromLocalStorage();
 
-                this.setupCanvases();
-                this.initializeAnalyzer();
-                this.initializeFilterPositions();
+                if (savedState && savedState.filters) {
+                    // Apply saved state to local filters
+                    this.filters = savedState.filters.map(filter => ({
+                        type: filter.type,
+                        frequency: filter.frequency,
+                        gain: filter.gain,
+                        Q: filter.Q || 1,
+                        bypass: filter.bypass
+                    }));
+
+                    // Configure WEQ8 with saved state
+                    this.filters.forEach((filter, index) => {
+                        // Initialize each filter parameter
+                        this.weq8.setFilterType(index, filter.type);
+                        this.weq8.setFilterFrequency(index, filter.frequency);
+                        if (this.filterHasGain(filter.type)) {
+                            this.weq8.setFilterGain(index, filter.gain);
+                        }
+                        if (this.filterHasQ(filter.type)) {
+                            this.weq8.setFilterQ(index, filter.Q);
+                        }
+                        this.weq8.toggleBypass(index, filter.bypass);
+                    });
+
+                    // Ensure frequency response is updated
+                    await this.$nextTick();
+                    this.initializeAnalyzer();
+
+                    this.drawFrequencyResponse();
+                } else {
+                    // Fall back to default initialization
+                    this.setupCanvases();
+                    this.initializeAnalyzer();
+                    await this.initializeFilterPositions();
+                }
+
                 resolve();
             });
         },
 
-        initializeFilterPositions() {
+        async initializeFilterPositions() {
             return new Promise(resolve => {
                 const canvas = this.$refs.responseCanvas;
                 if (!canvas) return resolve();
 
-                // Initialize filters with logarithmically spaced frequencies
-                const minF = Math.log10(20);
-                const maxF = Math.log10(this.nyquist);
-                const step = (maxF - minF) / (this.filters.length - 1);
+                // First check for saved state
+                const savedState = this.equalizerStore.loadFromLocalStorage();
 
-                this.filters = this.filters.map((filter, index) => {
-                    const frequency = Math.pow(10, minF + step * index);
-                    return {
+                if (savedState && savedState.filters) {
+                    // Use saved filter positions
+                    this.filters = savedState.filters.map(filter => ({
                         ...filter,
-                        frequency,
-                        gain: 0,
                         Q: filter.Q || 1,
-                        bypass: false
-                    };
-                });
+                        bypass: filter.bypass || false
+                    }));
+                } else {
+                    // No saved state - initialize with logarithmic spacing
+                    const minF = Math.log10(80);
+                    const maxF = Math.log10(this.nyquist);
+                    const step = (maxF - minF) / (this.filters.length - 1);
+
+                    // Get default filters for types
+                    const defaultFilters = this.equalizerStore.getDefaultFilters();
+
+                    this.filters = defaultFilters.map((defaultFilter, index) => {
+                        const frequency = Math.pow(10, minF + step * index);
+                        return {
+                            ...defaultFilter,
+                            frequency,
+                            gain: 0,
+                            Q: defaultFilter.Q || 1,
+                            bypass: false
+                        };
+                    });
+                }
 
                 this.drawFrequencyResponse();
                 resolve();
@@ -404,7 +452,6 @@ export default {
         },
 
         async updateFilter(index, property, value) {
-            console.log(`Updating filter ${index}, property: ${property}, value: ${value}`);
             const filter = this.filters[index];
             const startValue = filter[property];
 
@@ -419,9 +466,9 @@ export default {
                 filter[property] = value;
             }
 
-            // Update WEQ8 runtime
             if (!this.weq8) return;
 
+            // Update WEQ8 runtime
             switch (property) {
                 case 'type':
                     this.weq8.setFilterType(index, value);
@@ -443,11 +490,6 @@ export default {
                     this.weq8.toggleBypass(index, value);
                     break;
             }
-
-            // After updating WEQ8 manually save the current filters state
-            this.equalizerStore.savedState = {
-                filters: this.filters.map(f => ({ ...f }))
-            };
 
             this.drawFrequencyResponse();
         },
@@ -487,6 +529,21 @@ export default {
             if (this.selectedPoint !== null) {
                 const handle = event.target;
                 handle.releasePointerCapture(event.pointerId);
+
+                // Save complete state of all filters when dragging stops
+                const completeState = {
+                    filters: this.filters.map(filter => ({
+                        type: filter.type,
+                        frequency: filter.frequency,
+                        gain: filter.gain,
+                        Q: filter.Q,
+                        bypass: filter.bypass
+                    }))
+                };
+
+                // Update store with complete state
+                this.equalizerStore.savedState = completeState;
+                this.equalizerStore.saveToLocalStorage();
             }
             this.isDragging = false;
             this.selectedPoint = null;
@@ -608,9 +665,6 @@ export default {
                     this.source.connect(this.weq8.input);
                     this.weq8.connect(this.analyserNode);
 
-                    // Set up state listener for new instance
-                    this.equalizerStore.setupStateListener(this.weq8);
-
                     // Now safe to draw
                     await Promise.resolve();
                     this.drawFrequencyResponse();
@@ -621,21 +675,17 @@ export default {
             }
         },
 
-        setupStateListener(weq8Instance) {
-            if (!weq8Instance) return;
-
-            weq8Instance.on("filtersChanged", (state) => {
-                console.log('Filter state changed:', state);
-                this.savedState = state;
-            });
-        },
-
         async resetEQ() {
+            const minF = Math.log10(80);
+            const maxF = Math.log10(this.nyquist);
+            const step = (maxF - minF) / (this.filters.length - 1);
+
             await this.initializeFilterPositions();
 
             const defaultFilters = this.equalizerStore.getDefaultFilters();
 
             this.filters.forEach((filter, index) => {
+                const frequency = Math.pow(10, minF + step * index);
                 // Reset to default filter type and values
                 this.weq8.setFilterType(index, defaultFilters[index].type);
                 this.weq8.setFilterFrequency(index, filter.frequency);
@@ -645,6 +695,7 @@ export default {
 
                 // Update the filter object
                 filter.type = defaultFilters[index].type;
+                filter.frequency = frequency;
                 filter.gain = 0;
                 filter.bypass = false;
             });
@@ -683,13 +734,17 @@ export default {
         setupCanvas(this.$refs.responseCanvas);
         setupCanvas(this.$refs.gridCanvas);
 
+        // Initialize filters first
         await this.initializeFilterPositions();
-        this.drawFrequencyResponse();
 
+        // Then set up the audio processing chain
         if (this.$refs.analyserCanvas) {
             this.updateAnalysisPositions();
             this.drawAnalyzer();
         }
+
+        // Draw the response after everything is set up
+        this.drawFrequencyResponse();
     },
 
     computed: {
@@ -718,7 +773,7 @@ export default {
     watch: {
         filters: {
             deep: true,
-            handler() {
+            handler(newFilters) {
                 this.drawFrequencyResponse();
             }
         }
