@@ -32,6 +32,8 @@ body {
     var(--p-purple-200) 0%,
     var(--p-blue-300) 100%
   );
+
+  --eq-background: var(--p-gray-200);
 }
 
 /* dark mode colors */
@@ -50,4 +52,6 @@ body {
     var(--p-purple-400) 0%,
     var(--p-blue-500) 100%
   );
+
+  --eq-background: rgb(17, 24, 39);
 }

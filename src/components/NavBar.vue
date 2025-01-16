@@ -23,12 +23,12 @@ export default {
                 },
                 {
                     label: 'Equalizer',
-                    icon: 'pi pi-fw pi-sliders-h',
+                    icon: 'pi pi-fw pi-wave-pulse ',
                     route: '/equalizer'
                 },
                 {
                     label: 'Presets',
-                    icon: 'pi pi-wave-pulse',
+                    icon: 'pi pi-sliders-h',
                     route: '/presets'
                 },
                 {

@@ -6,8 +6,10 @@ import Slider from 'primevue/slider';
 import FloatLabel from 'primevue/floatlabel';
 import Select from 'primevue/select';
 import Checkbox from 'primevue/checkbox';
-
 import Toast from 'primevue/toast';
+import Dialog from 'primevue/dialog';
+import Textarea from 'primevue/textarea';
+
 
 import { WEQ8Runtime } from 'weq8'
 import { useEqualizerStore } from '@/stores/equalizerStore';
@@ -23,6 +25,8 @@ export default {
         Button,
         InputNumber,
         Slider,
+        Dialog,
+        Textarea,
     },
     data() {
         const equalizerStore = useEqualizerStore();
@@ -32,6 +36,10 @@ export default {
                 name: 'Equalizer',
                 description: '',
             },
+            showExportDialog: false,
+            showImportDialog: false,
+            exportedSettings: '',
+            importedSettings: '',
             analyserNode: null,
             animationFrame: null,
             audio: null,
@@ -701,20 +709,126 @@ export default {
             });
 
             this.drawFrequencyResponse();
-            this.showReset();
-        },
 
-        showSave() {
-            this.$toast.add({ severity: 'success', summary: 'Preset Saved', detail: 'Preset was saved successfully', life: 3000 });
-        },
-
-        showLoad() {
-            this.$toast.add({ severity: 'info', summary: 'Preset Loaded', detail: 'Preset was loaded successfully', life: 3000 });
-        },
-
-        showReset() {
             this.$toast.add({ severity: 'secondary', summary: 'Reset Complete', detail: 'EQ settings have been reset to default', life: 3000 });
         },
+
+        exportSettings() {
+            // Create export object with current filter settings
+            const exportData = {
+                filters: this.filters.map(filter => ({
+                    type: filter.type,
+                    frequency: filter.frequency,
+                    gain: filter.gain,
+                    Q: filter.Q,
+                    bypass: filter.bypass
+                }))
+            };
+
+            this.exportedSettings = JSON.stringify(exportData, null, 2);
+            this.showExportDialog = true;
+        },
+
+        async copyToClipboard() {
+            try {
+                await navigator.clipboard.writeText(this.exportedSettings);
+                this.$toast.add({
+                    severity: 'success',
+                    summary: 'Copied!',
+                    detail: 'Settings copied to clipboard',
+                    life: 3000
+                });
+                this.showExportDialog = false;
+            } catch (err) {
+                this.$toast.add({
+                    severity: 'error',
+                    summary: 'Error',
+                    detail: 'Failed to copy settings',
+                    life: 3000
+                });
+            }
+        },
+
+        async confirmImport() {
+            try {
+                const importData = JSON.parse(this.importedSettings);
+
+                // Validate the imported data
+                if (!importData.filters || !Array.isArray(importData.filters)) {
+                    throw new Error('Invalid filter settings format');
+                }
+
+                // Validate each filter
+                importData.filters.forEach(filter => {
+                    if (!filter.type || !filter.frequency || typeof filter.gain !== 'number') {
+                        throw new Error('Invalid filter configuration');
+                    }
+                });
+
+                // Apply the imported settings
+                await this.applyImportedSettings(importData);
+
+                this.$toast.add({
+                    severity: 'success',
+                    summary: 'Success',
+                    detail: 'Filter settings imported successfully',
+                    life: 3000
+                });
+
+                this.showImportDialog = false;
+                this.importedSettings = '';
+            } catch (err) {
+                this.$toast.add({
+                    severity: 'error',
+                    summary: 'Error',
+                    detail: 'Invalid filter settings format',
+                    life: 3000
+                });
+            }
+        },
+
+        cancelImport() {
+            this.importedSettings = '';
+            this.showImportDialog = false;
+        },
+
+        async applyImportedSettings(importData) {
+            // Disconnect old audio chain
+            this.source.disconnect();
+            this.weq8.disconnect();
+
+            // Create new WEQ8 instance
+            this.weq8 = new WEQ8Runtime(this.audioContext);
+
+            // Update filters state
+            this.filters = importData.filters.map(filter => ({
+                ...filter,
+                Q: filter.Q || 1,
+                bypass: filter.bypass || false
+            }));
+
+            // Configure each filter
+            this.filters.forEach((filter, index) => {
+                this.weq8.setFilterType(index, filter.type);
+                this.weq8.setFilterFrequency(index, filter.frequency);
+                if (this.filterHasGain(filter.type)) {
+                    this.weq8.setFilterGain(index, filter.gain);
+                }
+                if (this.filterHasQ(filter.type)) {
+                    this.weq8.setFilterQ(index, filter.Q);
+                }
+                this.weq8.toggleBypass(index, filter.bypass);
+            });
+
+            // Reconnect audio chain
+            this.source.connect(this.weq8.input);
+            this.weq8.connect(this.analyserNode);
+
+            // Update visualization
+            await Promise.resolve();
+            this.drawFrequencyResponse();
+        }
+
     },
 
     async mounted() {
@@ -788,30 +902,55 @@ export default {
             <div class="grid grid-cols-12 gap-6 h-full">
                 <!-- Left Card -->
                 <div class="col-span-12 lg:col-span-2">
-                    <Card class="h-full">
+                    <Card class="h-full shadow-xl">
                         <template #title>
                             <div class="text-xl font-semibold mb-2">Controls</div>
                         </template>
                         <template #content>
                             <Toast />
                             <div class="flex flex-col gap-2">
-                                <Button label="Save" severity="primary" rounded @click="savePreset" />
-                                <Button label="Load" outlined rounded @click="loadPreset" />
+                                <Button label="Export Settings" severity="primary" rounded @click="exportSettings" />
+                                <Button label="Import Settings" outlined rounded @click="showImportDialog = true" />
                                 <Button label="Reset" severity="secondary" outlined rounded @click="resetEQ" />
                             </div>
+
+                            <!-- New Dialog components -->
+                            <Dialog v-model:visible="showExportDialog" header="Export Filter Settings" modal
+                                style="width: 50vw">
+                                <div class="flex flex-col gap-4 justify-center">
+                                    <div class="text-sm">Copy these filter settings to save them:</div>
+                                    <Textarea v-model="exportedSettings" variant="filled" size="small" autoResize
+                                        readonly />
+                                    <Button label="Copy to Clipboard" @click="copyToClipboard" />
+                                </div>
+                            </Dialog>
+
+                            <Dialog v-model:visible="showImportDialog" header="Import Filter Settings" modal
+                                style="width: 50vw">
+                                <div class="flex flex-col gap-4">
+                                    <div class="text-sm">Paste your saved filter settings here:</div>
+                                    <Textarea v-model="importedSettings" variant="filled" size="small" autoResize
+                                        placeholder="Paste JSON filter settings here..." />
+                                    <div class="flex justify-end gap-2">
+                                        <Button label="Cancel" severity="secondary" @click="cancelImport" />
+                                        <Button label="Import" severity="primary" @click="confirmImport" />
+                                    </div>
+                                </div>
+                            </Dialog>
                         </template>
                     </Card>
                 </div>
 
                 <!-- Middle Card -->
                 <div class="col-span-12 lg:col-span-8">
-                    <Card class="h-full">
+                    <Card class="h-full shadow-xl">
                         <template #title>
                             <div class="text-2xl font-semibold mb-2">{{ preset.name }}</div>
                         </template>
                         <template #content>
                             <div class="flex flex-col items-center justify-center">
-                                <div class="border w-full h-96 relative mb-6 bg-gray-900 rounded-lg overflow-hidden">
+                                <div class="border w-full h-96 relative mb-6 bg-gray-900 rounded-lg overflow-hidden"
+                                    style="background-color: var(--eq-background)">
                                     <!-- Grid Canvas (bottom layer) -->
                                     <canvas ref="gridCanvas" class="absolute top-0 left-0 w-full h-full z-10"></canvas>
 
@@ -855,7 +994,7 @@ export default {
 
                 <!-- Right Card -->
                 <div class="col-span-12 lg:col-span-2">
-                    <Card class="h-full">
+                    <Card class="h-full shadow-xl">
                         <template #title>
                             <div class="text-xl font-semibold mb-4">
                                 Band Controls
