@@ -98,7 +98,7 @@ export default {
                     });
 
                     // Ensure frequency response is updated
-                    await this.$nextTick();
+                    await Promise.resolve();
                     this.initializeAnalyzer();
 
                     this.drawFrequencyResponse();
@@ -773,8 +773,8 @@ export default {
     watch: {
         filters: {
             deep: true,
-            handler(newFilters) {
-                this.drawFrequencyResponse();
+            handler() {
+                this.drawFrequencyResponse()
             }
         }
     }
@@ -837,9 +837,11 @@ export default {
                                         @pointerup="stopDragging" @pointercancel="stopDragging"
                                         @wheel.prevent="handleFilterScroll($event, index)">
                                         <span class="filter-number text-white">{{ index + 1 }}</span>
-                                        <span class="filter-freq absolute">{{ getFilterLabel(filter) }}</span>
-                                        <span v-if="filterHasQ(filter.type)" class="filter-q">Q: {{ filter.Q.toFixed(1)
+                                        <span class="filter-tooltip filter-freq absolute">{{ getFilterLabel(filter)
                                             }}</span>
+                                        <span v-if="filterHasQ(filter.type)" class="filter-tooltip filter-q">Q: {{
+                                            filter.Q.toFixed(1)
+                                        }}</span>
                                     </div>
                                 </div>
                                 <div class="flex gap-4">
@@ -940,9 +942,8 @@ export default {
     cursor: grabbing;
 }
 
-.filter-q {
+.filter-tooltip {
     position: absolute;
-    bottom: -24px;
     left: 50%;
     transform: translateX(-50%);
     background: rgba(0, 0, 0, 0.8);
@@ -957,24 +958,16 @@ export default {
     border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.filter-handle:hover .filter-q {
-    opacity: 1;
+.filter-q {
+    bottom: -24px;
 }
 
 .filter-freq {
     top: -24px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.8);
-    padding: 1px 4px;
-    border-radius: 6px;
-    color: white;
-    font-size: 0.75rem;
-    white-space: nowrap;
-    opacity: 0;
-    transition: opacity 0.2s;
-    backdrop-filter: blur(4px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.filter-handle:hover .filter-q {
+    opacity: 1;
 }
 
 .filter-handle:hover .filter-freq,
