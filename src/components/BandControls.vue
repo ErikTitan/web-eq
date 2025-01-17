@@ -84,7 +84,7 @@ export default {
             </div>
 
             <div class="mb-4">
-                <div class="flex items-center justify-between mb-2">
+                <div class="flex flex-wrap items-center justify-between mb-2">
                     <label>Gain:</label>
                     <span class="text-sm text-gray-500">{{ filter.gain.toFixed(1) }}dB</span>
                 </div>
@@ -92,7 +92,7 @@ export default {
                     :min="-15" :max="15" :step="0.1" fluid />
             </div>
 
-            <div class="flex items-center gap-2">
+            <div class="flex flex-wrap items-center gap-2">
                 <label>Bypass:</label>
                 <Checkbox v-model="filter.bypass" @update:modelValue="updateFilter(index, 'bypass', $event)"
                     :binary="true" class="w-5 h-5" />
