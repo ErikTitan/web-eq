@@ -138,22 +138,26 @@ export default {
                     bypass: filter.bypass || false
                 }));
             } else {
-                const minF = Math.log10(80);
-                const maxF = Math.log10(this.nyquist);
-                const step = (maxF - minF) / (this.filters.length - 1);
                 const defaultFilters = this.equalizerStore.getDefaultFilters();
-
-                this.filters = defaultFilters.map((defaultFilter, index) => {
-                    const frequency = Math.pow(10, minF + step * index);
-                    return {
-                        ...defaultFilter,
-                        frequency,
-                        gain: 0,
-                        Q: defaultFilter.Q || 1,
-                        bypass: false
-                    };
-                });
+                this.filters = this.createSpacedFilters(defaultFilters);
             }
+        },
+
+        createSpacedFilters(defaultFilters) {
+            const minF = Math.log10(80);
+            const maxF = Math.log10(this.nyquist);
+            const step = (maxF - minF) / (defaultFilters.length - 1);
+
+            return defaultFilters.map((defaultFilter, index) => {
+                const frequency = Math.pow(10, minF + step * index);
+                return {
+                    ...defaultFilter,
+                    frequency,
+                    gain: 0,
+                    Q: defaultFilter.Q || 1,
+                    bypass: false
+                };
+            });
         },
 
         // Filter interaction methods
@@ -372,8 +376,8 @@ export default {
         },
 
         resetEQ() {
-            this.initializeFilterPositions();
             const defaultFilters = this.equalizerStore.getDefaultFilters();
+            this.filters = this.createSpacedFilters(defaultFilters);
 
             this.filters.forEach((filter, index) => {
                 this.weq8.setFilterType(index, defaultFilters[index].type);
@@ -381,10 +385,6 @@ export default {
                 this.weq8.setFilterGain(index, 0);
                 this.weq8.toggleBypass(index, false);
                 this.updateFilter(index, 'Q', 1);
-
-                filter.type = defaultFilters[index].type;
-                filter.gain = 0;
-                filter.bypass = false;
             });
 
             this.$toast.add({ severity: 'info', summary: 'Reset', detail: 'EQ settings have been reset to default', life: 3000 });
@@ -645,10 +645,6 @@ export default {
 </template>
 
 <style scoped>
-.filter-handle {
-    margin: -12px 0 0 -12px;
-}
-
 canvas {
     image-rendering: pixelated;
     background: transparent;
