@@ -15,7 +15,7 @@ export default {
             required: true
         }
     },
-    emits: ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'wheel'],
+    emits: ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'wheel', 'update:filters'],
     data() {
         return {
             canvas: null
@@ -23,10 +23,9 @@ export default {
     },
     methods: {
         getFilterPosition(filter) {
-            if (!this.$refs.responseCanvas) return { transform: 'translate(0px, 0px)' };
+            if (!this.canvas) return { transform: 'translate(0px, 0px)' };
 
-            const canvas = this.$refs.responseCanvas;
-            const rect = canvas.getBoundingClientRect();
+            const rect = this.canvas.getBoundingClientRect();
             const displayWidth = rect.width;
             const displayHeight = rect.height;
 
@@ -42,6 +41,26 @@ export default {
             return {
                 transform: `translate(${x}px, ${y}px)`
             };
+        },
+
+        async initializeFilterPositions() {
+            const minF = Math.log10(20);
+            const maxF = Math.log10(this.nyquist);
+            const step = (maxF - minF) / (this.filters.length - 1);
+
+            const newFilters = this.filters.map((filter, index) => {
+                const frequency = Math.pow(10, minF + step * index);
+                return {
+                    ...filter,
+                    frequency,
+                    gain: 0,
+                    Q: filter.Q || 1,
+                    bypass: false
+                };
+            });
+
+            // Emit the updated filters back to parent
+            this.$emit('update:filters', newFilters);
         },
 
         getFilterLabel(filter) {
@@ -80,8 +99,9 @@ export default {
             ].includes(type);
         }
     },
-    mounted() {
+    async mounted() {
         this.canvas = this.$el.parentElement;
+        await this.initializeFilterPositions();
     }
 }
 </script>

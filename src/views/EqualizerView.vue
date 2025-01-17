@@ -525,8 +525,8 @@ export default {
                         <template #content>
                             <Toast />
                             <div class="flex flex-col gap-2">
-                                <Button label="Export Settings" severity="primary" rounded @click="exportSettings" />
-                                <Button label="Import Settings" outlined rounded @click="showImportDialog = true" />
+                                <Button label="Export" severity="primary" rounded @click="exportSettings" />
+                                <Button label="Import" outlined rounded @click="showImportDialog = true" />
                                 <Button label="Reset" severity="secondary" outlined rounded @click="resetEQ" />
                             </div>
 
@@ -575,7 +575,8 @@ export default {
                                         :device-pixel-ratio="devicePixelRatio" @pointermove="handleDrag"
                                         @pointerup="stopDragging" @pointerleave="stopDragging" />
                                     <FilterHandles :filters="filters" :selected-point="selectedPoint" :nyquist="nyquist"
-                                        @pointerdown="startDragging" @pointermove="handleDrag" @pointerup="stopDragging"
+                                        @update:filters="filters = $event" @pointerdown="startDragging"
+                                        @pointermove="handleDrag" @pointerup="stopDragging"
                                         @pointercancel="stopDragging" @wheel="handleFilterScroll" />
                                 </div>
                                 <div class="flex gap-4">

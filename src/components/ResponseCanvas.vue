@@ -4,7 +4,7 @@ export default {
     props: {
         weq8: {
             type: Object,
-            required: true
+            required: false
         },
         filters: {
             type: Array,
