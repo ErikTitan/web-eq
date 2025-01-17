@@ -43,7 +43,7 @@ export default {
             };
         },
 
-        async initializeFilterPositions() {
+        initializeFilterPositions() {
             const minF = Math.log10(20);
             const maxF = Math.log10(this.nyquist);
             const step = (maxF - minF) / (this.filters.length - 1);
@@ -99,9 +99,9 @@ export default {
             ].includes(type);
         }
     },
-    async mounted() {
+    mounted() {
         this.canvas = this.$el.parentElement;
-        await this.initializeFilterPositions();
+        this.initializeFilterPositions();
     }
 }
 </script>
