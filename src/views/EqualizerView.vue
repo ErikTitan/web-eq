@@ -17,6 +17,7 @@ import GridCanvas from '@/components/GridCanvas.vue';
 import AnalyzerCanvas from '@/components/AnalyzerCanvas.vue';
 import ResponseCanvas from '@/components/ResponseCanvas.vue';
 import FilterHandles from '@/components/FilterHandles.vue';
+import BandControls from '@/components/BandControls.vue';
 
 export default {
     name: 'Equalizer',
@@ -34,7 +35,8 @@ export default {
         GridCanvas,
         AnalyzerCanvas,
         ResponseCanvas,
-        FilterHandles
+        FilterHandles,
+        BandControls,
     },
     data() {
         const equalizerStore = useEqualizerStore();
@@ -72,7 +74,7 @@ export default {
     },
     methods: {
         // Audio initialization and setup
-        async initializeAudio() {
+        initializeAudio() {
             return new Promise(async (resolve) => {
                 this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 this.nyquist = this.audioContext.sampleRate / 2;
@@ -97,14 +99,14 @@ export default {
                 if (savedState && savedState.filters) {
                     this.initializeWithSavedState(savedState);
                 } else {
-                    await this.initializeFilterPositions();
+                    this.initializeFilterPositions();
                 }
 
                 resolve();
             });
         },
 
-        async initializeWithSavedState(savedState) {
+        initializeWithSavedState(savedState) {
             this.filters = savedState.filters.map(filter => ({
                 type: filter.type,
                 frequency: filter.frequency,
@@ -124,11 +126,9 @@ export default {
                 }
                 this.weq8.toggleBypass(index, filter.bypass);
             });
-
-            await Promise.resolve();
         },
 
-        async initializeFilterPositions() {
+        initializeFilterPositions() {
             const savedState = this.equalizerStore.loadFromLocalStorage();
 
             if (savedState && savedState.filters) {
@@ -145,7 +145,7 @@ export default {
 
         createSpacedFilters(defaultFilters) {
             const minF = Math.log10(80);
-            const maxF = Math.log10(this.nyquist);
+            const maxF = Math.log10(this.nyquist * 0.75);
             const step = (maxF - minF) / (defaultFilters.length - 1);
 
             return defaultFilters.map((defaultFilter, index) => {
@@ -339,7 +339,7 @@ export default {
             this.$toast.add({ severity: 'success', summary: 'Saved', detail: 'Preset saved successfully', life: 3000 });
         },
 
-        async loadPreset() {
+        loadPreset() {
             try {
                 const savedState = this.equalizerStore.loadFromLocalStorage();
 
@@ -425,7 +425,7 @@ export default {
             }
         },
 
-        async confirmImport() {
+        confirmImport() {
             try {
                 const importData = JSON.parse(this.importedSettings);
 
@@ -439,7 +439,7 @@ export default {
                     }
                 });
 
-                await this.applyImportedSettings(importData);
+                this.applyImportedSettings(importData);
 
                 this.$toast.add({
                     severity: 'success',
@@ -465,7 +465,7 @@ export default {
             this.showImportDialog = false;
         },
 
-        async applyImportedSettings(importData) {
+        applyImportedSettings(importData) {
             this.source.disconnect();
             this.weq8.disconnect();
 
@@ -595,47 +595,8 @@ export default {
                             <div class="text-xl font-semibold mb-4">Band Controls</div>
                         </template>
                         <template #content>
-                            <div class="space-y-3">
-                                <div v-for="(filter, index) in filters" :key="index"
-                                    class="p-4 rounded-lg border border-gray-700">
-                                    <div class="font-semibold mb-4">Band {{ index + 1 }}</div>
-
-                                    <div class="mb-4">
-                                        <FloatLabel variant="on" class="w-full">
-                                            <Select class="min-w-full" v-model="filter.type"
-                                                @change="updateFilter(index, 'type', $event.value)"
-                                                :options="filterTypes" optionLabel="label" optionValue="value" fluid />
-                                            <label>Type:</label>
-                                        </FloatLabel>
-                                    </div>
-
-                                    <div class="mb-4">
-                                        <FloatLabel variant="on" class="w-full">
-                                            <InputNumber class="w-full" v-model="filter.frequency"
-                                                @update:modelValue="updateFilter(index, 'frequency', $event)" :min="20"
-                                                :max="20000" :step="1" mode="decimal" fluid />
-                                            <label>Frequency:</label>
-                                        </FloatLabel>
-                                    </div>
-
-                                    <div class="mb-4">
-                                        <div class="flex items-center justify-between mb-2">
-                                            <label>Gain:</label>
-                                            <span class="text-sm text-gray-500">{{ filter.gain.toFixed(1) }}dB</span>
-                                        </div>
-                                        <Slider class="w-full" v-model="filter.gain"
-                                            @update:modelValue="updateFilter(index, 'gain', $event)" :min="-15"
-                                            :max="15" :step="0.1" fluid />
-                                    </div>
-
-                                    <div class="flex items-center gap-2">
-                                        <label>Bypass:</label>
-                                        <Checkbox v-model="filter.bypass"
-                                            @update:modelValue="updateFilter(index, 'bypass', $event)" :binary="true"
-                                            class="w-5 h-5" />
-                                    </div>
-                                </div>
-                            </div>
+                            <BandControls :filters="filters" :filter-types="filterTypes" :nyquist="nyquist" :weq8="weq8"
+                                @update-filter="updateFilter" />
                         </template>
                     </Card>
                 </div>
