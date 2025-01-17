@@ -1,14 +1,11 @@
 <script>
 import Card from 'primevue/card';
 import Button from 'primevue/button';
-import InputNumber from 'primevue/inputnumber';
-import Slider from 'primevue/slider';
-import FloatLabel from 'primevue/floatlabel';
 import Select from 'primevue/select';
-import Checkbox from 'primevue/checkbox';
 import Toast from 'primevue/toast';
 import Dialog from 'primevue/dialog';
 import Textarea from 'primevue/textarea';
+import FileUpload from 'primevue/fileupload';
 
 import { WEQ8Runtime } from 'weq8';
 import { useEqualizerStore } from '@/stores/equalizerStore';
@@ -22,14 +19,11 @@ import BandControls from '@/components/BandControls.vue';
 export default {
     name: 'Equalizer',
     components: {
+        FileUpload,
         Toast,
-        Checkbox,
         Select,
-        FloatLabel,
         Card,
         Button,
-        InputNumber,
-        Slider,
         Dialog,
         Textarea,
         GridCanvas,
@@ -46,6 +40,7 @@ export default {
                 name: 'Equalizer',
                 description: '',
             },
+            uploadedFile: null,
             showExportDialog: false,
             showImportDialog: false,
             exportedSettings: '',
@@ -333,48 +328,6 @@ export default {
         },
 
         // Preset and settings methods
-        savePreset() {
-            this.equalizerStore.updateState(this.filters);
-            this.equalizerStore.saveToLocalStorage();
-            this.$toast.add({ severity: 'success', summary: 'Saved', detail: 'Preset saved successfully', life: 3000 });
-        },
-
-        loadPreset() {
-            try {
-                const savedState = this.equalizerStore.loadFromLocalStorage();
-
-                if (savedState && savedState.filters) {
-                    if (this.weq8) {
-                        this.source.disconnect();
-                        this.weq8.disconnect();
-                    }
-
-                    this.weq8 = new WEQ8Runtime(this.audioContext);
-                    this.filters = savedState.filters.map(filter => ({ ...filter }));
-
-                    this.filters.forEach((filter, index) => {
-                        this.weq8.setFilterType(index, filter.type);
-                        this.weq8.setFilterFrequency(index, filter.frequency);
-                        if (this.filterHasGain(filter.type)) {
-                            this.weq8.setFilterGain(index, filter.gain);
-                        }
-                        if (this.filterHasQ(filter.type)) {
-                            this.weq8.setFilterQ(index, filter.Q);
-                        }
-                        this.weq8.toggleBypass(index, filter.bypass);
-                    });
-
-                    this.source.connect(this.weq8.input);
-                    this.weq8.connect(this.analyserNode);
-
-                    this.$toast.add({ severity: 'success', summary: 'Loaded', detail: 'Preset loaded successfully', life: 3000 });
-                }
-            } catch (error) {
-                console.error('Error loading preset:', error);
-                this.$toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to load preset', life: 3000 });
-            }
-        },
-
         resetEQ() {
             const defaultFilters = this.equalizerStore.getDefaultFilters();
             this.filters = this.createSpacedFilters(defaultFilters);
@@ -387,22 +340,62 @@ export default {
                 this.updateFilter(index, 'Q', 1);
             });
 
-            this.$toast.add({ severity: 'info', summary: 'Reset', detail: 'EQ settings have been reset to default', life: 3000 });
+            this.$toast.add({ severity: 'secondary', summary: 'Reset', detail: 'EQ settings have been reset to default', life: 3000 });
         },
 
         exportSettings() {
             const exportData = {
+                name: this.preset.name,
+                description: this.preset.description,
                 filters: this.filters.map(filter => ({
                     type: filter.type,
                     frequency: filter.frequency,
                     gain: filter.gain,
                     Q: filter.Q,
                     bypass: filter.bypass
-                }))
+                })),
+                metadata: {
+                    createdAt: new Date().toISOString(),
+                    version: "1.0.0",
+                    application: "PULSE-EQ"
+                }
             };
 
             this.exportedSettings = JSON.stringify(exportData, null, 2);
             this.showExportDialog = true;
+        },
+
+        downloadPreset() {
+            try {
+                const exportData = JSON.parse(this.exportedSettings);
+                const fileName = `${this.preset.name.toLowerCase().replace(/\s+/g, '-')}-preset.json`;
+
+                const blob = new Blob([this.exportedSettings], { type: 'application/json' });
+                const url = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = fileName;
+
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(url);
+
+                this.$toast.add({
+                    severity: 'success',
+                    summary: 'Downloaded!',
+                    detail: 'Preset file downloaded successfully',
+                    life: 3000
+                });
+                this.showExportDialog = false;
+            } catch (err) {
+                this.$toast.add({
+                    severity: 'error',
+                    summary: 'Error',
+                    detail: 'Failed to download preset file',
+                    life: 3000
+                });
+            }
         },
 
         async copyToClipboard() {
@@ -414,7 +407,6 @@ export default {
                     detail: 'Settings copied to clipboard',
                     life: 3000
                 });
-                this.showExportDialog = false;
             } catch (err) {
                 this.$toast.add({
                     severity: 'error',
@@ -423,6 +415,27 @@ export default {
                     life: 3000
                 });
             }
+        },
+
+        handleFileImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const importData = JSON.parse(e.target.result);
+                    this.importedSettings = JSON.stringify(importData, null, 2);
+                } catch (err) {
+                    this.$toast.add({
+                        severity: 'error',
+                        summary: 'Error',
+                        detail: 'Invalid preset file format',
+                        life: 3000
+                    });
+                }
+            };
+            reader.readAsText(file);
         },
 
         confirmImport() {
@@ -461,7 +474,7 @@ export default {
         },
 
         cancelImport() {
-            this.importedSettings = '';
+            this.clearUpload();
             this.showImportDialog = false;
         },
 
@@ -490,7 +503,42 @@ export default {
 
             this.source.connect(this.weq8.input);
             this.weq8.connect(this.analyserNode);
-        }
+        },
+
+        onFileSelect(event) {
+            const file = event.files[0];
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const importData = JSON.parse(e.target.result);
+                    this.importedSettings = JSON.stringify(importData, null, 2);
+                    this.uploadedFile = file;
+                } catch (err) {
+                    this.$toast.add({
+                        severity: 'error',
+                        summary: 'Error',
+                        detail: 'Invalid preset file format',
+                        life: 3000
+                    });
+                }
+            };
+            reader.readAsText(file);
+        },
+
+        formatSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        },
+
+        clearUpload() {
+            this.uploadedFile = null;
+            this.importedSettings = '';
+        },
+
     },
 
     async mounted() {
@@ -525,31 +573,48 @@ export default {
                         <template #content>
                             <Toast />
                             <div class="flex flex-col gap-2">
-                                <Button label="Export" severity="primary" rounded @click="exportSettings" />
-                                <Button label="Import" outlined rounded @click="showImportDialog = true" />
+                                <Button label="Export Preset" severity="primary" rounded @click="exportSettings" />
+                                <Button label="Import Preset" outlined rounded @click="showImportDialog = true" />
                                 <Button label="Reset" severity="secondary" outlined rounded @click="resetEQ" />
                             </div>
 
-                            <!-- Dialog components -->
+                            <!-- Export Dialog -->
                             <Dialog v-model:visible="showExportDialog" header="Export Filter Settings" modal
                                 style="width: 50vw">
-                                <div class="flex flex-col gap-4 justify-center">
-                                    <div class="text-sm">Copy these filter settings to save them:</div>
-                                    <Textarea v-model="exportedSettings" variant="filled" size="small" autoResize
-                                        readonly />
-                                    <Button label="Copy to Clipboard" @click="copyToClipboard" />
+                                <div class="flex flex-col gap-4">
+                                    <div class="text-sm">Your filter settings:</div>
+                                    <Textarea v-model="exportedSettings" size="small" autoResize readonly />
+                                    <div class="flex justify-between gap-4">
+                                        <Button label="Copy to Clipboard" severity="secondary"
+                                            @click="copyToClipboard" />
+                                        <Button label="Download File" severity="primary" @click="downloadPreset" />
+                                    </div>
                                 </div>
                             </Dialog>
 
-                            <Dialog v-model:visible="showImportDialog" header="Import Filter Settings" modal
-                                style="width: 50vw">
-                                <div class="flex flex-col gap-4">
-                                    <div class="text-sm">Paste your saved filter settings here:</div>
-                                    <Textarea v-model="importedSettings" variant="filled" size="small" autoResize
-                                        placeholder="Paste JSON filter settings here..." />
-                                    <div class="flex justify-end gap-2">
-                                        <Button label="Cancel" severity="secondary" @click="cancelImport" />
-                                        <Button label="Import" severity="primary" @click="confirmImport" />
+                            <!-- Import Dialog -->
+                            <Dialog v-model:visible="showImportDialog" header="Import Preset" modal style="width: 60vw"
+                                @hide="cancelImport">
+                                <div class="flex flex-col gap-6">
+                                    <div class="text-sm text-gray-600 mb-2">
+                                        Import a PULSE-EQ preset file or paste settings directly:
+                                    </div>
+
+                                    <FileUpload mode="basic" name="preset" accept=".json" :maxFileSize="1000000"
+                                        @select="onFileSelect" :auto="true" chooseLabel="Choose Preset File"
+                                        class="mb-4">
+                                    </FileUpload>
+
+                                    <div class="flex flex-col gap-2">
+                                        <label class="text-sm text-gray-600">Or Paste Settings:</label>
+                                        <Textarea v-model="importedSettings" size="small" autoResize
+                                            placeholder="Paste PULSE-EQ preset JSON here..." />
+                                    </div>
+
+                                    <div class="flex justify-end gap-3 mt-4">
+                                        <Button label="Cancel" severity="secondary" text @click="cancelImport" />
+                                        <Button label="Import Preset" severity="primary" :disabled="!importedSettings"
+                                            @click="confirmImport" />
                                     </div>
                                 </div>
                             </Dialog>
