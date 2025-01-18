@@ -54,80 +54,29 @@ export default {
                 { label: 'OFF', value: 'noop' }
             ],
             selectedPoint: null,
-            isDragging: false,
             devicePixelRatio: window.devicePixelRatio || 1,
             nyquist: 24000,
         }
     },
     methods: {
         // Audio initialization and setup
-        initializeAudio() {
-            return new Promise(async (resolve) => {
-                this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                this.nyquist = this.audioContext.sampleRate / 2;
-                const audioPath = new URL('@/assets/audio/sample_audio.mp3', import.meta.url).href;
-                this.audio = new Audio(audioPath);
-                this.source = this.audioContext.createMediaElementSource(this.audio);
-                this.weq8 = new WEQ8Runtime(this.audioContext);
+        async initializeAudio() {
+            const audioPath = new URL('@/assets/audio/sample_audio.mp3', import.meta.url).href
+            const {
+                filters,
+                audioContext,
+                analyserNode,
+                source,
+                weq8,
+                nyquist
+            } = await this.equalizerStore.initializeAudio(audioPath)
 
-                // Initialize analyzer node here
-                this.analyserNode = this.audioContext.createAnalyser();
-                this.analyserNode.fftSize = 8192;
-                this.analyserNode.smoothingTimeConstant = 0.5;
-
-                // Set up audio routing
-                this.source.connect(this.weq8.input);
-                this.weq8.connect(this.analyserNode);
-                this.analyserNode.connect(this.audioContext.destination);
-
-                // Try to load saved state
-                const savedState = this.equalizerStore.loadFromLocalStorage();
-
-                if (savedState && savedState.filters) {
-                    this.initializeWithSavedState(savedState);
-                } else {
-                    this.initializeFilterPositions();
-                }
-
-                resolve();
-            });
-        },
-
-        initializeWithSavedState(savedState) {
-            this.filters = savedState.filters.map(filter => ({
-                type: filter.type,
-                frequency: filter.frequency,
-                gain: filter.gain,
-                Q: filter.Q || 1,
-                bypass: filter.bypass
-            }));
-
-            this.filters.forEach((filter, index) => {
-                this.weq8.setFilterType(index, filter.type);
-                this.weq8.setFilterFrequency(index, filter.frequency);
-                if (this.equalizerStore.filterHasGain(filter.type)) {
-                    this.weq8.setFilterGain(index, filter.gain);
-                }
-                if (this.equalizerStore.filterHasQ(filter.type)) {
-                    this.weq8.setFilterQ(index, filter.Q);
-                }
-                this.weq8.toggleBypass(index, filter.bypass);
-            });
-        },
-
-        initializeFilterPositions() {
-            const savedState = this.equalizerStore.loadFromLocalStorage();
-
-            if (savedState && savedState.filters) {
-                this.filters = savedState.filters.map(filter => ({
-                    ...filter,
-                    Q: filter.Q || 1,
-                    bypass: filter.bypass || false
-                }));
-            } else {
-                const defaultFilters = this.equalizerStore.getDefaultFilters();
-                this.filters = this.equalizerStore.createSpacedFilters(defaultFilters);
-            }
+            this.filters = filters
+            this.audioContext = audioContext
+            this.analyserNode = analyserNode
+            this.source = source
+            this.weq8 = weq8
+            this.nyquist = nyquist
         },
 
         // Filter interaction methods
@@ -165,34 +114,21 @@ export default {
 
         // Audio control methods
         playAudio() {
-            if (this.audioContext.state === 'suspended') {
-                this.audioContext.resume();
-            }
-            this.audio.play();
+            this.equalizerStore.playAudio()
         },
 
         pauseAudio() {
-            this.audio.pause();
+            this.equalizerStore.pauseAudio()
         },
 
     },
 
     async mounted() {
-
-        await this.initializeAudio();
+        await this.initializeAudio()
     },
 
     beforeUnmount() {
-        if (this.analyserNode) {
-            this.analyserNode.disconnect();
-        }
-        if (this.audio) {
-            this.audio.pause();
-            this.audio = null;
-        }
-        if (this.audioContext) {
-            this.audioContext.close();
-        }
+        this.equalizerStore.cleanup()
     }
 }
 </script>

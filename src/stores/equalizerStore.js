@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { WEQ8Runtime } from 'weq8'
 
 export const useEqualizerStore = defineStore('equalizer', {
   state: () => ({
@@ -11,6 +12,12 @@ export const useEqualizerStore = defineStore('equalizer', {
     ],
     selectedPoint: null,
     isDragging: false,
+    audioContext: null,
+    analyserNode: null,
+    audio: null,
+    source: null,
+    weq8: null,
+    nyquist: 24000,
   }),
 
   getters: {
@@ -42,6 +49,97 @@ export const useEqualizerStore = defineStore('equalizer', {
   },
 
   actions: {
+    // Audio initialization methods
+    async initializeAudio(audioPath) {
+      this.audioContext = new (window.AudioContext || window.webkitAudioContext)()
+      this.nyquist = this.audioContext.sampleRate / 2
+
+      this.audio = new Audio(audioPath)
+      this.source = this.audioContext.createMediaElementSource(this.audio)
+      this.weq8 = new WEQ8Runtime(this.audioContext)
+
+      // Initialize analyzer node
+      this.analyserNode = this.audioContext.createAnalyser()
+      this.analyserNode.fftSize = 8192
+      this.analyserNode.smoothingTimeConstant = 0.5
+
+      // Set up audio routing
+      this.source.connect(this.weq8.input)
+      this.weq8.connect(this.analyserNode)
+      this.analyserNode.connect(this.audioContext.destination)
+
+      // Try to load saved state
+      const savedState = this.loadFromLocalStorage()
+      const filters = savedState?.filters
+        ? this.initializeWithSavedState(savedState)
+        : this.initializeFilterPositions()
+
+      return {
+        filters,
+        audioContext: this.audioContext,
+        analyserNode: this.analyserNode,
+        source: this.source,
+        weq8: this.weq8,
+        nyquist: this.nyquist,
+      }
+    },
+
+    initializeWithSavedState(savedState) {
+      const filters = savedState.filters.map((filter) => ({
+        type: filter.type,
+        frequency: filter.frequency,
+        gain: filter.gain,
+        Q: filter.Q || 1,
+        bypass: filter.bypass,
+      }))
+
+      filters.forEach((filter, index) => {
+        this.weq8.setFilterType(index, filter.type)
+        this.weq8.setFilterFrequency(index, filter.frequency)
+        if (this.filterHasGain(filter.type)) {
+          this.weq8.setFilterGain(index, filter.gain)
+        }
+        if (this.filterHasQ(filter.type)) {
+          this.weq8.setFilterQ(index, filter.Q)
+        }
+        this.weq8.toggleBypass(index, filter.bypass)
+      })
+
+      return filters
+    },
+
+    initializeFilterPositions() {
+      const savedState = this.loadFromLocalStorage()
+
+      if (savedState?.filters) {
+        return savedState.filters.map((filter) => ({
+          ...filter,
+          Q: filter.Q || 1,
+          bypass: filter.bypass || false,
+        }))
+      }
+
+      return this.createSpacedFilters(this.defaultFilters)
+    },
+
+    // Audio control methods
+    async playAudio() {
+      if (this.audioContext.state === 'suspended') {
+        await this.audioContext.resume()
+      }
+      await this.audio.play()
+    },
+
+    pauseAudio() {
+      this.audio?.pause()
+    },
+
+    cleanup() {
+      this.analyserNode?.disconnect()
+      this.audio?.pause()
+      this.audio = null
+      this.audioContext?.close()
+    },
     // Drag handling methods
     startDragging(event, index) {
       event.preventDefault()
