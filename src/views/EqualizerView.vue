@@ -3,9 +3,7 @@ import Card from 'primevue/card';
 import Button from 'primevue/button';
 import Select from 'primevue/select';
 
-import { WEQ8Runtime } from 'weq8';
 import { useEqualizerStore } from '@/stores/equalizerStore';
-
 import GridCanvas from '@/components/GridCanvas.vue';
 import AnalyzerCanvas from '@/components/AnalyzerCanvas.vue';
 import ResponseCanvas from '@/components/ResponseCanvas.vue';
