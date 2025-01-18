@@ -41,8 +41,9 @@ export default {
         }
     },
     data() {
+        const equalizerStore = useEqualizerStore();
         return {
-            equalizerStore: useEqualizerStore(),
+            equalizerStore,
             preset: {
                 name: 'Equalizer',
                 description: '',
@@ -58,7 +59,7 @@ export default {
     methods: {
         resetEQ() {
             const defaultFilters = this.equalizerStore.getDefaultFilters();
-            const spacedFilters = this.createSpacedFilters(defaultFilters);
+            const spacedFilters = this.equalizerStore.createSpacedFilters(defaultFilters, this.audioContext);
 
             this.$emit('update:filters', spacedFilters);
 
@@ -76,20 +77,6 @@ export default {
                 detail: 'EQ settings have been reset to default',
                 life: 3000
             });
-        },
-
-        createSpacedFilters(defaultFilters) {
-            const minF = Math.log10(80);
-            const maxF = Math.log10(this.audioContext.sampleRate / 2 * 0.75);
-            const step = (maxF - minF) / (defaultFilters.length - 1);
-
-            return defaultFilters.map((defaultFilter, index) => ({
-                ...defaultFilter,
-                frequency: Math.pow(10, minF + step * index),
-                gain: 0,
-                Q: 1,
-                bypass: false
-            }));
         },
 
         exportSettings() {
@@ -219,10 +206,10 @@ export default {
             newFilters.forEach((filter, index) => {
                 newWeq8.setFilterType(index, filter.type);
                 newWeq8.setFilterFrequency(index, filter.frequency);
-                if (this.filterHasGain(filter.type)) {
+                if (this.equalizerStore.filterHasGain(filter.type)) {
                     newWeq8.setFilterGain(index, filter.gain);
                 }
-                if (this.filterHasQ(filter.type)) {
+                if (this.equalizerStore.filterHasQ(filter.type)) {
                     newWeq8.setFilterQ(index, filter.Q);
                 }
                 newWeq8.toggleBypass(index, filter.bypass);
@@ -231,24 +218,6 @@ export default {
             this.source.connect(newWeq8.input);
             newWeq8.connect(this.analyserNode);
             this.$emit('update-weq8', newWeq8);
-        },
-
-        filterHasGain(type) {
-            return [
-                'lowshelf12', 'lowshelf24',
-                'highshelf12', 'highshelf24',
-                'peaking12', 'peaking24'
-            ].includes(type);
-        },
-
-        filterHasQ(type) {
-            return [
-                'lowpass12', 'lowpass24',
-                'highpass12', 'highpass24',
-                'bandpass12', 'bandpass24',
-                'peaking12', 'peaking24',
-                'notch12', 'notch24'
-            ].includes(type);
         },
 
         cancelImport() {

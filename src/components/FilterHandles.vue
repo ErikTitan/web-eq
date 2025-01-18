@@ -1,4 +1,5 @@
 <script>
+import { useEqualizerStore } from '@/stores/equalizerStore';
 export default {
     name: 'FilterHandles',
     props: {
@@ -17,7 +18,9 @@ export default {
     },
     emits: ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'wheel', 'update:filters'],
     data() {
+        const equalizerStore = useEqualizerStore();
         return {
+            equalizerStore,
             canvas: null
         }
     },
@@ -80,24 +83,6 @@ export default {
             }
             return "Hz";
         },
-
-        filterHasGain(type) {
-            return [
-                'lowshelf12', 'lowshelf24',
-                'highshelf12', 'highshelf24',
-                'peaking12', 'peaking24'
-            ].includes(type);
-        },
-
-        filterHasQ(type) {
-            return [
-                'lowpass12', 'lowpass24',
-                'highpass12', 'highpass24',
-                'bandpass12', 'bandpass24',
-                'peaking12', 'peaking24',
-                'notch12', 'notch24'
-            ].includes(type);
-        }
     },
     mounted() {
         this.canvas = this.$el.parentElement;
@@ -113,14 +98,15 @@ export default {
       backdrop-blur shadow-lg flex items-center justify-center" :class="{
         'selected': selectedPoint === index,
         'bypassed': filter.bypass,
-        'has-gain': filterHasGain(filter.type),
-        'has-q': filterHasQ(filter.type)
+        'has-gain': equalizerStore.filterHasGain(filter.type),
+        'has-q': equalizerStore.filterHasQ(filter.type)
     }" :style="getFilterPosition(filter)" @pointerdown="$emit('pointerdown', $event, index)"
             @pointermove="$emit('pointermove', $event)" @pointerup="$emit('pointerup', $event)"
             @pointercancel="$emit('pointercancel', $event)" @wheel.prevent="$emit('wheel', $event, index)">
             <span class="filter-number text-white">{{ index + 1 }}</span>
             <span class="filter-tooltip filter-freq absolute">{{ getFilterLabel(filter) }}</span>
-            <span v-if="filterHasQ(filter.type)" class="filter-tooltip filter-q">Q: {{ filter.Q.toFixed(1) }}</span>
+            <span v-if="equalizerStore.filterHasQ(filter.type)" class="filter-tooltip filter-q">Q: {{
+                filter.Q.toFixed(1) }}</span>
         </div>
     </div>
 </template>
