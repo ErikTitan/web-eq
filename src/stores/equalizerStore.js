@@ -10,6 +10,16 @@ export const useEqualizerStore = defineStore('equalizer', {
       { type: 'peaking12', frequency: 500, gain: 0, Q: 1, bypass: false },
       { type: 'highshelf12', frequency: 1000, gain: 0, Q: 1, bypass: false },
     ],
+    filterTypes: [
+      { label: 'LP', value: 'lowpass12' },
+      { label: 'HP', value: 'highpass12' },
+      { label: 'BP', value: 'bandpass12' },
+      { label: 'LS', value: 'lowshelf12' },
+      { label: 'HS', value: 'highshelf12' },
+      { label: 'PK', value: 'peaking12' },
+      { label: 'NO', value: 'notch12' },
+      { label: 'OFF', value: 'noop' },
+    ],
     selectedPoint: null,
     isDragging: false,
     audioContext: null,
@@ -345,7 +355,6 @@ export const useEqualizerStore = defineStore('equalizer', {
         return null
       }
     },
-
     getDefaultFilters() {
       return [...this.defaultFilters]
     },

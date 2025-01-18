@@ -43,16 +43,6 @@ export default {
             source: null,
             weq8: null,
             filters: equalizerStore.getDefaultFilters(),
-            filterTypes: [
-                { label: 'LP', value: 'lowpass12' },
-                { label: 'HP', value: 'highpass12' },
-                { label: 'BP', value: 'bandpass12' },
-                { label: 'LS', value: 'lowshelf12' },
-                { label: 'HS', value: 'highshelf12' },
-                { label: 'PK', value: 'peaking12' },
-                { label: 'NO', value: 'notch12' },
-                { label: 'OFF', value: 'noop' }
-            ],
             selectedPoint: null,
             devicePixelRatio: window.devicePixelRatio || 1,
             nyquist: 24000,
@@ -184,8 +174,8 @@ export default {
                             <div class="text-xl font-semibold mb-4">Band Controls</div>
                         </template>
                         <template #content>
-                            <BandControls :filters="filters" :filter-types="filterTypes" :nyquist="nyquist" :weq8="weq8"
-                                @update-filter="updateFilter" />
+                            <BandControls :filters="filters" :filter-types="equalizerStore.filterTypes"
+                                :nyquist="nyquist" :weq8="weq8" @update-filter="updateFilter" />
                         </template>
                     </Card>
                 </div>
