@@ -601,8 +601,8 @@ export default {
                                     </div>
 
                                     <FileUpload mode="basic" name="preset" accept=".json" :maxFileSize="1000000"
-                                        @select="onFileSelect" :auto="true" chooseLabel="Choose Preset File"
-                                        class="mb-4">
+                                        :auto="true" chooseLabel="Choose Preset File" class="mb-4"
+                                        @select="onFileSelect" :customUpload="true">
                                     </FileUpload>
 
                                     <div class="flex flex-col gap-2">
